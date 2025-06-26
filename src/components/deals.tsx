@@ -42,7 +42,7 @@ export function Deals() {
     <section className="py-16 bg-gray-900">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-12">
-          <h2 className="text-3xl font-bold text-white">Today's Deals</h2>
+          <h2 className="text-3xl font-bold text-white">Today&apos;s Deals</h2>
           <Button variant="outline" className="border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white">
             View All Deals
           </Button>
