@@ -8,7 +8,9 @@ export interface IVendor extends Document {
   password: string
   mobileNo: string
   shopAddress: string
+  upiId: string
   availableProducts: string[]
+  isApproved: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -42,16 +44,24 @@ const VendorSchema = new Schema<IVendor>(
     },
     shopAddress: {
       type: String,
-      trim: true,
+      required: [true, "Shop address is required"],
       minlength: [10, "Shop address must be at least 10 characters"],
-      maxlength: [200, "Shop address cannot exceed 200 characters"],
+    },
+    upiId: {
+      type: String,
+      required: [true, "UPI ID is required"],
+      match: [/^[\w.-]+@[\w.-]+$/, "Please enter a valid UPI ID"],
     },
     availableProducts: [
       {
-        type: Schema.Types.ObjectId,
+        type: String,
         ref: "Product",
       },
     ],
+    isApproved: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -70,12 +80,10 @@ export const VendorZodSchema = z.object({
       "Password must contain at least one uppercase letter, one lowercase letter, and one number",
     ),
   mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number"),
-  shopAddress: z
-    .string()
-    .min(10, "Shop address must be at least 10 characters")
-    .max(200, "Shop address cannot exceed 200 characters")
-    .trim(),
+  shopAddress: z.string().min(10, "Shop address must be at least 10 characters"),
+  upiId: z.string().regex(/^[\w.-]+@[\w.-]+$/, "Please enter a valid UPI ID"),
   availableProducts: z.array(z.string()).default([]),
+  isApproved: z.boolean().default(false),
 })
 
 export const VendorUpdateZodSchema = VendorZodSchema.partial()

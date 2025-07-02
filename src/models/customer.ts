@@ -8,7 +8,7 @@ export interface ICustomer extends Document {
   password: string
   productsPurchased: string[]
   mobileNo: string
-  address: mongoose.Types.ObjectId
+  address: string
   createdAt: Date
   updatedAt: Date
 }
@@ -37,7 +37,7 @@ const CustomerSchema = new Schema<ICustomer>(
     },
     productsPurchased: [
       {
-        type: Schema.Types.ObjectId,
+        type: String,
         ref: "Product",
       },
     ],
@@ -47,8 +47,9 @@ const CustomerSchema = new Schema<ICustomer>(
       match: [/^\+?[1-9]\d{1,14}$/, "Please enter a valid mobile number"],
     },
     address: {
-      type: Schema.Types.ObjectId,
-      ref: "Address",
+      type: String,
+      required: [true, "Address is required"],
+      minlength: [10, "Address must be at least 10 characters"],
     },
   },
   {
@@ -69,7 +70,7 @@ export const CustomerZodSchema = z.object({
     ),
   productsPurchased: z.array(z.string()).default([]),
   mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number"),
-  address: z.string().optional(),
+  address: z.string().min(10, "Address must be at least 10 characters"),
 })
 
 export const CustomerUpdateZodSchema = CustomerZodSchema.partial()

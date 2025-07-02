@@ -31,6 +31,10 @@ async function dbConnect(): Promise<typeof mongoose> {
     const db = await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
       socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+      maxPoolSize: 10, // Maintain up to 10 socket connections
+      minPoolSize: 5, // Maintain a minimum of 5 socket connections
+      maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
+      bufferCommands: false, // Disable mongoose buffering
     })
 
     // Update connection status
@@ -45,6 +49,7 @@ async function dbConnect(): Promise<typeof mongoose> {
     return mongoose
   } catch (error) {
     console.error("Error connecting to DB:", error)
+    connection.isConnected = mongoose.ConnectionStates.disconnected
     throw error
   }
 }
@@ -67,5 +72,19 @@ async function dbDisconnect(): Promise<void> {
   }
 }
 
-export { dbConnect, dbDisconnect }
+/**
+ * Get current connection status
+ */
+function getConnectionStatus(): mongoose.ConnectionStates {
+  return connection.isConnected
+}
+
+/**
+ * Check if database is connected
+ */
+function isConnected(): boolean {
+  return connection.isConnected === mongoose.ConnectionStates.connected
+}
+
+export {dbConnect, dbDisconnect, getConnectionStatus, isConnected }
 export default dbConnect
