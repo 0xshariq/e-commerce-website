@@ -18,8 +18,26 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "E-commerce Website",
+  keywords: [
+    "e-commerce",
+    "online shopping",
+    "buy products",
+    "sell products",
+    "shopping cart",
+    "checkout",
+    "product listings",
+    "user accounts",
+  ],
+  authors: [
+    {
+      name: "Sharique Chaudhary",
+      url: "https://portfolio-sigma-rose-22.vercel.app/",
+    },
+  ],
+  creator: "Sharique Chaudhary",
   description:
-    "An e-commerce website helping you to buy and sell products easily.",
+    "An e-commerce website built with Next.js, TypeScript, and Tailwind CSS, featuring a modern design and user-friendly interface. Browse products, add to cart, and enjoy a seamless shopping experience.",
+    
 };
 
 export default function RootLayout({

@@ -1,75 +1,51 @@
-import mongoose, { Schema, type Document } from "mongoose"
+import mongoose from "mongoose"
 import { z } from "zod"
 
-// TypeScript Interface
-export interface IRefund extends Document {
-  razorpayOrderId: mongoose.Types.ObjectId
-  razorpayPaymentId: mongoose.Types.ObjectId
-  refundId: string
-  customerId: mongoose.Types.ObjectId
-  vendorId: mongoose.Types.ObjectId
-  amount: number
-  refundTime: Date
-  createdAt: Date
-  updatedAt: Date
-}
-
-// Mongoose Schema
-const RefundSchema = new Schema<IRefund>(
+const refundSchema = new mongoose.Schema(
   {
-    razorpayOrderId: {
-      type: Schema.Types.ObjectId,
-      ref: "Payment",
-      required: [true, "Razorpay order ID is required"],
-    },
-    razorpayPaymentId: {
-      type: Schema.Types.ObjectId,
-      ref: "Payment",
-      required: [true, "Razorpay payment ID is required"],
-    },
-    refundId: {
+    orderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order", required: true },
+    customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true },
+    vendorId: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor", required: true },
+    requestRefundId: { type: mongoose.Schema.Types.ObjectId, ref: "RequestRefund", required: true },
+    refundAmount: { type: Number, required: true },
+    refundReason: { type: String, required: true },
+    refundStatus: {
       type: String,
-      required: [true, "Refund ID is required"],
-      unique: true,
+      enum: ["initiated", "processing", "completed", "failed"],
+      default: "initiated",
     },
-    customerId: {
-      type: Schema.Types.ObjectId,
-      ref: "Customer",
-      required: [true, "Customer ID is required"],
+    razorpayPaymentId: { type: String, required: true },
+    razorpayRefundId: { type: String },
+    refundMethod: {
+      type: String,
+      enum: ["original_payment", "bank_transfer", "wallet"],
+      default: "original_payment",
     },
-    vendorId: {
-      type: Schema.Types.ObjectId,
-      ref: "Vendor",
-      required: [true, "Vendor ID is required"],
-    },
-    amount: {
-      type: Number,
-      required: [true, "Amount is required"],
-      min: [0, "Amount must be positive"],
-    },
-    refundTime: {
-      type: Date,
-      required: [true, "Refund time is required"],
-      default: Date.now,
-    },
+    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+    refundNotes: { type: String },
+    refundDate: { type: Date },
+    completedAt: { type: Date },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 )
 
-// Zod Schema
-export const RefundZodSchema = z.object({
-  razorpayOrderId: z.string().min(1, "Razorpay order ID is required"),
-  razorpayPaymentId: z.string().min(1, "Razorpay payment ID is required"),
-  refundId: z.string().min(1, "Refund ID is required"),
-  customerId: z.string().min(1, "Customer ID is required"),
-  vendorId: z.string().min(1, "Vendor ID is required"),
-  amount: z.number().min(0, "Amount must be positive"),
-  refundTime: z.date().default(() => new Date()),
+export const refundZodSchema = z.object({
+  orderId: z.string(),
+  customerId: z.string(),
+  vendorId: z.string(),
+  requestRefundId: z.string(),
+  refundAmount: z.number().min(0),
+  refundReason: z.string(),
+  refundStatus: z.enum(["initiated", "processing", "completed", "failed"]).default("initiated"),
+  razorpayPaymentId: z.string(),
+  razorpayRefundId: z.string().optional(),
+  refundMethod: z.enum(["original_payment", "bank_transfer", "wallet"]).default("original_payment"),
+  processedBy: z.string().optional(),
+  refundNotes: z.string().optional(),
+  refundDate: z.date().optional(),
+  completedAt: z.date().optional(),
 })
 
-export const RefundUpdateZodSchema = RefundZodSchema.partial()
+export type RefundType = z.infer<typeof refundZodSchema>
 
-// Export Model
-export const Refund = mongoose.models.Refund || mongoose.model<IRefund>("Refund", RefundSchema)
+export const Refund = mongoose.models?.Refund || mongoose.model("Refund", refundSchema)
