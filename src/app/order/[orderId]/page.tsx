@@ -45,7 +45,7 @@ export default function OrderPage({ params }: { params: { orderId: string } }) {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/customer/signin")
+      router.push("/auth/signin")
       return
     }
 
@@ -54,15 +54,17 @@ export default function OrderPage({ params }: { params: { orderId: string } }) {
 
   const fetchOrder = async () => {
     try {
-      const response = await fetch(`/api/orders/${params.orderId}`)
+      const response = await fetch(`/api/order/${params.orderId}`)
       if (response.ok) {
         const data = await response.json()
         setOrder(data.order)
       } else {
+        console.error("Failed to fetch order")
         router.push("/customer/dashboard")
       }
     } catch (error) {
       console.error("Error fetching order:", error)
+      router.push("/customer/dashboard")
     } finally {
       setLoading(false)
     }

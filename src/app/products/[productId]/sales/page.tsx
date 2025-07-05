@@ -16,7 +16,7 @@ export default function ProductSalesPage({ params }: { params: { productId: stri
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/vendor/signin")
+      router.push("/auth/signin")
       return
     }
 

@@ -14,7 +14,7 @@ export default async function AdminProfile() {
   const session = await getServerSession(authOptions)
 
   if (!session || session.user.role !== "admin") {
-    redirect("/admin/signin")
+    redirect("/auth/signin")
   }
 
   return (

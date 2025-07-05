@@ -14,7 +14,7 @@ export default async function CustomerProfile() {
   const session = await getServerSession(authOptions)
 
   if (!session || session.user.role !== "customer") {
-    redirect("/customer/signin")
+    redirect("/auth/signin")
   }
 
   return (

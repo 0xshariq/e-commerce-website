@@ -66,7 +66,7 @@ export default function CustomerDashboard() {
     if (status === "loading") return
 
     if (!session || session?.user?.role !== "customer") {
-      redirect("/customer/signin")
+      redirect("/auth/signin")
     }
 
     fetchDashboardData()

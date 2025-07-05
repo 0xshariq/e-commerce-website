@@ -35,7 +35,7 @@ export default function VendorProductsPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/vendor/signin")
+      router.push("/auth/signin")
       return
     }
 

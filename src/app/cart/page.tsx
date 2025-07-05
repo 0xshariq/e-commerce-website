@@ -37,11 +37,11 @@ export default function CartPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/customer/signin")
+      router.push("/auth/signin")
       return
     }
 
-    if (session?.user?.role !== "customer") {
+    if ((session?.user as any)?.role !== "customer") {
       router.push("/")
       return
     }
@@ -54,12 +54,13 @@ export default function CartPage() {
       const response = await fetch("/api/cart")
       if (response.ok) {
         const data = await response.json()
-        setCartItems(data.cartItems)
-        setTotalAmount(data.totalAmount)
+        setCartItems(data.cartItems || [])
+        setTotalAmount(data.summary?.totalAmount || 0)
       } else {
         toast.error("Failed to fetch cart")
       }
     } catch (error) {
+      console.error("Error fetching cart:", error)
       toast.error("Error fetching cart")
     } finally {
       setLoading(false)
@@ -164,7 +165,9 @@ export default function CartPage() {
                       >
                         {item.productId.productName}
                       </Link>
-                      <p className="text-sm text-gray-600 mt-1">Sold by {item.productId.vendorId.name}</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Sold by {item.productId.vendorId?.name || 'Unknown Vendor'}
+                      </p>
                       <p className="text-lg font-bold text-green-600 mt-2">
                         ₹{item.productId.productPrice.toLocaleString()}
                       </p>

@@ -19,7 +19,7 @@ export default function ProductCouponPage({ params }: { params: { productId: str
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/vendor/signin")
+      router.push("/auth/signin")
       return
     }
 

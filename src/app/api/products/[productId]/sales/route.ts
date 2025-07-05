@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { connectDB } from "@/lib/database"
-import { ProductSale } from "@/models/product-sale"
+import { ProductSale, ProductSaleZodSchema } from "@/models/product-sale"
 import { Product } from "@/models/product"
 
 export async function GET(request: NextRequest, { params }: { params: { productId: string } }) {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: { productI
     }
 
     const sales = await ProductSale.find({ productId: params.productId })
-      .populate("customerId", "name email")
+      .populate("vendorId", "businessName email")
       .sort({ createdAt: -1 })
 
     return NextResponse.json({ sales })
@@ -40,7 +40,23 @@ export async function POST(request: NextRequest, { params }: { params: { product
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { customerId, quantity, salePrice, discount } = await request.json()
+    const body = await request.json()
+
+    // Validate with Zod schema
+    const validation = ProductSaleZodSchema.safeParse({
+      ...body,
+      saleStartingDate: new Date(body.saleStartingDate),
+      saleEndingDate: new Date(body.saleEndingDate),
+      vendorId: session.user.id,
+      productId: params.productId,
+    })
+
+    if (!validation.success) {
+      return NextResponse.json({ 
+        error: "Invalid data", 
+        details: validation.error.errors 
+      }, { status: 400 })
+    }
 
     await connectDB()
 
@@ -50,18 +66,16 @@ export async function POST(request: NextRequest, { params }: { params: { product
       return NextResponse.json({ error: "Product not found or unauthorized" }, { status: 404 })
     }
 
-    const sale = new ProductSale({
-      productId: params.productId,
-      vendorId: session.user.id,
-      customerId,
-      quantity,
-      salePrice,
-      discount: discount || 0,
-      saleDate: new Date(),
-    })
+    // Check if sale ID already exists
+    const existingSale = await ProductSale.findOne({ saleId: validation.data.saleId })
+    if (existingSale) {
+      return NextResponse.json({ error: "Sale ID already exists" }, { status: 400 })
+    }
+
+    const sale = new ProductSale(validation.data)
 
     await sale.save()
-    await sale.populate("customerId", "name email")
+    await sale.populate("vendorId", "businessName email")
 
     return NextResponse.json({ sale })
   } catch (error) {

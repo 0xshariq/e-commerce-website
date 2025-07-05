@@ -1,8 +1,9 @@
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
+import GitHubProvider from "next-auth/providers/github"
 import bcrypt from "bcryptjs"
-import { dbConnect } from "@/lib/database"
+import dbConnect from "@/lib/database"
 import { Customer } from "@/models/customer"
 import { Vendor } from "@/models/vendor"
 import { Admin } from "@/models/admin"
@@ -17,6 +18,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        role: { label: "Role", type: "text", optional: true },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -148,9 +150,45 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
+    GitHubProvider({
+      clientId: process.env.GITHUB_CLIENT_ID || "",
+      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
+      async profile(profile) {
+        await dbConnect()
+
+        // Check if user already exists
+        let existingUser = await Customer.findOne({ email: profile.email })
+
+        if (!existingUser) {
+          // Create new customer account for GitHub users
+          existingUser = await Customer.create({
+            name: profile.name || profile.login,
+            email: profile.email,
+            password: await bcrypt.hash(Math.random().toString(36), 12), // Random password
+            mobileNo: "", // Will be updated later
+            productsPurchased: [],
+            profileImage: profile.avatar_url,
+          })
+        }
+
+        return {
+          id: existingUser._id.toString(),
+          name: profile.name || profile.login,
+          email: profile.email,
+          image: profile.avatar_url,
+          role: "customer",
+          isAdmin: false,
+          mobileNo: existingUser.mobileNo || "",
+          shopAddress: "",
+          upiId: "",
+          isSuspended: existingUser.isSuspended || false,
+          isApproved: true,
+        }
+      },
+    }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, trigger, session }: any) {
       if (user) {
         token.id = user.id
         token.role = user.role
@@ -170,7 +208,7 @@ export const authOptions: NextAuthOptions = {
 
       return token
     },
-    async session({ session, token }) {
+    async session({ session, token }: any) {
       if (session.user) {
         session.user.id = token.id as string
         session.user.role = token.role as string
@@ -183,7 +221,7 @@ export const authOptions: NextAuthOptions = {
       }
       return session
     },
-    async redirect({ url, baseUrl }) {
+    async redirect({ url, baseUrl }: any) {
       // Role-based redirects
       if (url.includes("role=admin")) return `${baseUrl}/admin/dashboard`
       if (url.includes("role=vendor")) return `${baseUrl}/vendor/dashboard`
@@ -207,10 +245,10 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   events: {
-    async signIn({ user }) {
+    async signIn({ user }: any) {
       console.log(`User ${user.email} signed in with role: ${user.role}`)
     },
-    async signOut({ token }) {
+    async signOut({ token }: any) {
       console.log(`User ${token?.email} signed out`)
     },
   },

@@ -1,52 +1,173 @@
 import { type NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import { dbConnect } from "@/lib/database"
-import { Customer,CustomerZodSchema } from "@/models/customer"
-import { Vendor,VendorZodSchema } from "@/models/vendor"
-import { Admin,AdminZodSchema } from "@/models/admin"
+import { connectDB } from "@/lib/database"
+import { Customer } from "@/models/customer"
+import { Vendor } from "@/models/vendor"
+import { Admin } from "@/models/admin"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { role } = body
+    const { 
+      name, 
+      email, 
+      password, 
+      phone,
+      mobileNo, // Keep backward compatibility
+      role,
+      businessName,
+      businessAddress,
+      businessType,
+      department,
+      address
+    } = body
 
-    if (!role || !["customer", "vendor", "admin"].includes(role)) {
-      return NextResponse.json({ error: "Invalid or missing role" }, { status: 400 })
+    // Validate required fields
+    if (!name || !email || !password || !role) {
+      return NextResponse.json(
+        { error: "Missing required fields: name, email, password, role" },
+        { status: 400 }
+      )
     }
 
-    await dbConnect()
+    // Use phone or mobileNo for backward compatibility
+    const phoneNumber = phone || mobileNo
 
-    // Role-specific validation and creation
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: "Invalid email format" },
+        { status: 400 }
+      )
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: "Password must be at least 8 characters long" },
+        { status: 400 }
+      )
+    }
+
+    await connectDB()
+
+    // Check if user already exists in any collection
+    const existingCustomer = await Customer.findOne({ email })
+    const existingVendor = await Vendor.findOne({ email })
+    const existingAdmin = await Admin.findOne({ email })
+
+    if (existingCustomer || existingVendor || existingAdmin) {
+      return NextResponse.json(
+        { error: "User with this email already exists" },
+        { status: 409 }
+      )
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12)
+
+    // Create user based on role
+    let newUser
+    let message = "Account created successfully!"
+
     switch (role) {
-      case "customer": {
-        // Validate using Customer Zod schema
-        const validatedData = CustomerZodSchema.parse({
-          name: body.name,
-          email: body.email,
-          password: body.password,
-          mobileNo: body.mobileNo,
+      case "customer":
+        newUser = new Customer({
+          name,
+          email,
+          password: hashedPassword,
+          mobileNo: phoneNumber || "",
           productsPurchased: [],
-          address: body.address || "",
+          address: address || "",
+          createdAt: new Date(),
         })
+        break
 
-        // Check if customer already exists
-        const existingCustomer = await Customer.findOne({ email: validatedData.email })
-        if (existingCustomer) {
-          return NextResponse.json({ error: "Customer with this email already exists" }, { status: 400 })
+      case "vendor":
+        if (!businessName) {
+          return NextResponse.json(
+            { error: "Business name is required for vendor accounts" },
+            { status: 400 }
+          )
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(validatedData.password, 12)
-
-        // Create customer according to Customer model
-        const customer = await Customer.create({
-          name: validatedData.name,
-          email: validatedData.email,
+        newUser = new Vendor({
+          name,
+          email,
           password: hashedPassword,
-          mobileNo: validatedData.mobileNo,
-          productsPurchased: [],
-          address: validatedData.address,
+          mobileNo: phoneNumber || "",
+          businessName,
+          shopAddress: businessAddress || "",
+          businessType: businessType || "Individual Seller",
+          isApproved: false, // Vendors need admin approval
+          createdAt: new Date(),
         })
+        message = "Vendor account created! Pending admin approval."
+        break
+
+      case "admin":
+        newUser = new Admin({
+          name,
+          email,
+          password: hashedPassword,
+          mobileNo: phoneNumber || "",
+          department: department || "General",
+          permissions: ["read"], // Basic permissions, can be upgraded later
+          isActive: false, // Admins need super admin approval
+          createdAt: new Date(),
+        })
+        message = "Admin account created! Pending super admin approval."
+        break
+
+      default:
+        return NextResponse.json(
+          { error: "Invalid role specified. Must be customer, vendor, or admin" },
+          { status: 400 }
+        )
+    }
+
+    await newUser.save()
+
+    // Remove password from response
+    const userResponse = newUser.toObject()
+    delete userResponse.password
+
+    return NextResponse.json(
+      { 
+        message,
+        user: userResponse,
+        role
+      },
+      { status: 201 }
+    )
+
+  } catch (error) {
+    console.error("Registration error:", error)
+    
+    // Handle mongoose validation errors
+    if (error.name === "ValidationError") {
+      const validationErrors = Object.values(error.errors).map((err: any) => err.message)
+      return NextResponse.json(
+        { error: validationErrors.join(", ") },
+        { status: 400 }
+      )
+    }
+
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return NextResponse.json(
+        { error: "User with this email already exists" },
+        { status: 409 }
+      )
+    }
+
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
 
         return NextResponse.json(
           {

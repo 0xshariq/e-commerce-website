@@ -77,7 +77,7 @@ export default function ProductPage({ params }: { params: { productId: string } 
 
   const handleAddToCart = async () => {
     if (!session) {
-      router.push("/customer/signin")
+      router.push("/auth/signin")
       return
     }
 

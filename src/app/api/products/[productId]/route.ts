@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { connectDB } from "@/lib/database"
-import { Product } from "@/models/product"
+import { Product, ProductZodSchema } from "@/models/product"
 import { ProductReview } from "@/models/product-review"
 import { Order } from "@/models/order"
 import { Wishlist } from "@/models/wishlist"
+import { Category } from "@/models/category"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
@@ -168,7 +169,6 @@ export async function POST(request: NextRequest, { params }: { params: { product
 
 export async function PUT(request: NextRequest, { params }: { params: { productId: string } }) {
   try {
-    // Only vendors can update their products
     const session = await getServerSession(authOptions)
 
     if (!session || session.user.role !== "vendor") {
@@ -177,11 +177,29 @@ export async function PUT(request: NextRequest, { params }: { params: { productI
 
     const body = await request.json()
 
+    // Validate with Zod schema
+    const validation = ProductZodSchema.partial().safeParse(body)
+
+    if (!validation.success) {
+      return NextResponse.json({ 
+        error: "Invalid data", 
+        details: validation.error.errors 
+      }, { status: 400 })
+    }
+
     await connectDB()
+
+    // Verify category exists if being updated
+    if (validation.data.category) {
+      const categoryExists = await Category.findById(validation.data.category)
+      if (!categoryExists) {
+        return NextResponse.json({ error: "Invalid category" }, { status: 400 })
+      }
+    }
 
     const product = await Product.findOneAndUpdate(
       { _id: params.productId, vendorId: session.user.id },
-      { ...body, updatedAt: new Date() },
+      validation.data,
       { new: true, runValidators: true },
     ).populate("category", "name")
 

@@ -110,7 +110,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!session || session.user.role !== "customer") {
-      router.push("/customer/signin")
+      router.push("/auth/signin")
       return
     }
     fetchCartItems()

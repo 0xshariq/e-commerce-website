@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { connectDB } from "@/lib/database"
-import { Coupon } from "@/models/coupon"
+import { Coupon, CouponZodSchema } from "@/models/coupon"
 import { Product } from "@/models/product"
 
 export async function GET(request: NextRequest, { params }: { params: { productId: string } }) {
@@ -12,8 +12,7 @@ export async function GET(request: NextRequest, { params }: { params: { productI
     const coupons = await Coupon.find({
       productId: params.productId,
       isActive: true,
-      validFrom: { $lte: new Date() },
-      validTo: { $gte: new Date() },
+      expiryDate: { $gte: new Date() },
     }).populate("vendorId", "businessName")
 
     return NextResponse.json({ coupons })
@@ -31,7 +30,20 @@ export async function POST(request: NextRequest, { params }: { params: { product
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { couponCode, discountType, discountValue, validFrom, validTo, maxUses } = await request.json()
+    const body = await request.json()
+
+    // Validate with Zod schema
+    const validation = CouponZodSchema.safeParse({
+      ...body,
+      expiryDate: new Date(body.expiryDate)
+    })
+
+    if (!validation.success) {
+      return NextResponse.json({ 
+        error: "Invalid data", 
+        details: validation.error.errors 
+      }, { status: 400 })
+    }
 
     await connectDB()
 
@@ -41,19 +53,20 @@ export async function POST(request: NextRequest, { params }: { params: { product
       return NextResponse.json({ error: "Product not found or unauthorized" }, { status: 404 })
     }
 
+    // Check if coupon code already exists
+    const existingCoupon = await Coupon.findOne({ code: validation.data.code })
+    if (existingCoupon) {
+      return NextResponse.json({ error: "Coupon code already exists" }, { status: 400 })
+    }
+
     const coupon = new Coupon({
-      couponCode,
-      discountType,
-      discountValue,
-      validFrom: new Date(validFrom),
-      validTo: new Date(validTo),
-      maxUses: maxUses || 1,
+      ...validation.data,
       vendorId: session.user.id,
       productId: params.productId,
-      isActive: true,
     })
 
     await coupon.save()
+    await coupon.populate("vendorId", "businessName")
 
     return NextResponse.json({ coupon })
   } catch (error) {
@@ -98,29 +111,47 @@ export async function PUT(request: NextRequest, { params }: { params: { productI
     }
 
     const body = await request.json()
-    const validation = Coupon.schema.partial().safeParse(body)
+    const { couponId, ...updateData } = body
+
+    if (!couponId) {
+      return NextResponse.json({ error: "Coupon ID is required" }, { status: 400 })
+    }
+
+    // Validate with partial Zod schema
+    const validation = CouponZodSchema.partial().safeParse({
+      ...updateData,
+      expiryDate: updateData.expiryDate ? new Date(updateData.expiryDate) : undefined
+    })
 
     if (!validation.success) {
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 })
+      return NextResponse.json({ 
+        error: "Invalid data", 
+        details: validation.error.errors 
+      }, { status: 400 })
     }
+
     await connectDB()
+
     // Verify product belongs to vendor
     const product = await Product.findOne({ _id: params.productId, vendorId: session.user.id })
     if (!product) {
       return NextResponse.json({ error: "Product not found or unauthorized" }, { status: 404 })
     }
+
     const coupon = await Coupon.findOneAndUpdate(
       {
-        _id: body._id,
+        _id: couponId,
         productId: params.productId,
         vendorId: session.user.id,
       },
       validation.data,
       { new: true, runValidators: true },
     ).populate("vendorId", "businessName")
+
     if (!coupon) {
       return NextResponse.json({ error: "Coupon not found or unauthorized" }, { status: 404 })
     }   
+
     return NextResponse.json({ coupon })
   } catch (error) {
     console.error("Error updating coupon:", error)

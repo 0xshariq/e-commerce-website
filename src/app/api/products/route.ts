@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { connectDB } from "@/lib/database"
-import { Product } from "@/models/product"
+import { Product, ProductZodSchema } from "@/models/product"
 import { Category } from "@/models/category"
 import { ProductReview } from "@/models/product-review"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {
@@ -95,11 +97,42 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // This endpoint is for public product creation (if needed)
-    // Usually products are created through vendor endpoints
-    return NextResponse.json({ error: "Use vendor endpoints for product creation" }, { status: 403 })
+    const session = await getServerSession(authOptions)
+
+    if (!session || session.user.role !== "vendor") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const body = await request.json()
+
+    // Validate with Zod schema
+    const validation = ProductZodSchema.safeParse({
+      ...body,
+      vendorId: session.user.id,
+    })
+
+    if (!validation.success) {
+      return NextResponse.json({ 
+        error: "Invalid data", 
+        details: validation.error.errors 
+      }, { status: 400 })
+    }
+
+    await connectDB()
+
+    // Verify category exists
+    const categoryExists = await Category.findById(validation.data.category)
+    if (!categoryExists) {
+      return NextResponse.json({ error: "Invalid category" }, { status: 400 })
+    }
+
+    const product = new Product(validation.data)
+    await product.save()
+    await product.populate("category", "name")
+
+    return NextResponse.json({ product }, { status: 201 })
   } catch (error) {
-    console.error("Error in products POST:", error)
+    console.error("Error creating product:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
