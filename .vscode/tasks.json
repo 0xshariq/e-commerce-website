@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build and Run E-commerce App",
+			"type": "shell",
+			"command": "pnpm install && pnpm build && pnpm start",
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc",
+				"$eslint-stylish"
+			]
+		}
+	]
+}
