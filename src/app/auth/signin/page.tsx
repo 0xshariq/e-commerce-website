@@ -1,63 +1,85 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { signIn, getSession } from "next-auth/react"
-import { useRouter, useSearchParams } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import { Eye, EyeOff, Mail, Lock, Users, Store, Shield, ArrowLeft, Loader2, Github } from "lucide-react"
+import { useState } from "react";
+import { signIn, getSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  Users,
+  Store,
+  Shield,
+  ArrowLeft,
+  Loader2,
+} from "lucide-react";
 
 export default function SignInPage() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    role: "customer"
-  })
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [isRememberMe, setIsRememberMe] = useState(false)
-  
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") || "/"
+    role: "customer",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isRememberMe, setIsRememberMe] = useState(false);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
 
   // Form validation
   const validateForm = () => {
     if (!formData.email.trim()) {
-      setError("Email is required")
-      return false
+      setError("Email is required");
+      return false;
     }
 
     if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      setError("Please enter a valid email address")
-      return false
+      setError("Please enter a valid email address");
+      return false;
     }
 
     if (!formData.password) {
-      setError("Password is required")
-      return false
+      setError("Password is required");
+      return false;
     }
 
-    return true
-  }
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
     // Validate form before submission
     if (!validateForm()) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
 
     try {
@@ -66,65 +88,69 @@ export default function SignInPage() {
         password: formData.password,
         role: formData.role,
         redirect: false,
-      })
+      });
 
       if (result?.error) {
         // More specific error messages
         if (result.error === "CredentialsSignin") {
-          setError("Invalid email or password. Please check your credentials and try again.")
+          setError(
+            "Invalid email or password. Please check your credentials and try again."
+          );
         } else {
-          setError("Invalid credentials. Please check your email, password, and role.")
+          setError(
+            "Invalid credentials. Please check your email, password, and role."
+          );
         }
       } else {
         // Get the session to determine redirect URL based on role
-        const session = await getSession()
-        const userRole = (session?.user as any)?.role
+        const session = await getSession();
+        const userRole = (session?.user as any)?.role;
 
         // Role-based redirection
-        let redirectUrl = callbackUrl
+        let redirectUrl = callbackUrl;
         if (callbackUrl === "/") {
           switch (userRole) {
             case "admin":
-              redirectUrl = "/admin/dashboard"
-              break
+              redirectUrl = "/admin/dashboard";
+              break;
             case "vendor":
-              redirectUrl = "/vendor/dashboard"
-              break
+              redirectUrl = "/vendor/dashboard";
+              break;
             case "customer":
-              redirectUrl = "/customer/dashboard"
-              break
+              redirectUrl = "/customer/dashboard";
+              break;
             default:
-              redirectUrl = "/"
+              redirectUrl = "/";
           }
         }
-        
-        router.push(redirectUrl)
-        router.refresh()
+
+        router.push(redirectUrl);
+        router.refresh();
       }
     } catch (error) {
-      setError("An error occurred. Please try again.")
+      setError("An error occurred. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSocialSignIn = async (provider: string) => {
     try {
-      await signIn(provider, { callbackUrl: "/customer/dashboard" })
+      await signIn(provider, { callbackUrl: "/customer/dashboard" });
     } catch (error) {
-      setError("Failed to sign in with social provider.")
+      setError("Failed to sign in with social provider.");
     }
-  }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-    setError("")
-  }
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError("");
+  };
 
   const handleRoleChange = (role: string) => {
-    setFormData({ ...formData, role })
-    setError("")
-  }
+    setFormData({ ...formData, role });
+    setError("");
+  };
 
   const getRoleInfo = (role: string) => {
     switch (role) {
@@ -132,37 +158,37 @@ export default function SignInPage() {
         return {
           icon: Shield,
           color: "text-purple-600 bg-purple-50 border-purple-200",
-          description: "Access admin dashboard and manage the platform"
-        }
+          description: "Access admin dashboard and manage the platform",
+        };
       case "vendor":
         return {
           icon: Store,
           color: "text-green-600 bg-green-50 border-green-200",
-          description: "Manage your products and business operations"
-        }
+          description: "Manage your products and business operations",
+        };
       case "customer":
         return {
           icon: Users,
           color: "text-blue-600 bg-blue-50 border-blue-200",
-          description: "Shop products and manage your orders"
-        }
+          description: "Shop products and manage your orders",
+        };
       default:
         return {
           icon: Users,
           color: "text-gray-600 bg-gray-50 border-gray-200",
-          description: ""
-        }
+          description: "",
+        };
     }
-  }
+  };
 
-  const roleInfo = getRoleInfo(formData.role)
-  const RoleIcon = roleInfo.icon
+  const roleInfo = getRoleInfo(formData.role);
+  const RoleIcon = roleInfo.icon;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Back Link */}
-        <Link 
+        <Link
           href="/"
           className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6 transition-colors"
         >
@@ -176,13 +202,15 @@ export default function SignInPage() {
               <RoleIcon className="h-6 w-6 text-white" />
             </div>
             <div>
-              <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
+              <CardTitle className="text-2xl font-bold text-gray-900">
+                Welcome Back
+              </CardTitle>
               <CardDescription className="text-gray-600">
                 Sign in to your ShopHub account
               </CardDescription>
             </div>
           </CardHeader>
-          
+
           <CardContent className="space-y-6">
             {error && (
               <Alert variant="destructive">
@@ -219,9 +247,12 @@ export default function SignInPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                
+
                 {/* Role Description */}
-                <Badge variant="outline" className={`w-full justify-start p-2 ${roleInfo.color}`}>
+                <Badge
+                  variant="outline"
+                  className={`w-full justify-start p-2 ${roleInfo.color}`}
+                >
                   <RoleIcon className="h-3 w-3 mr-1" />
                   <span className="text-xs">{roleInfo.description}</span>
                 </Badge>
@@ -285,13 +316,16 @@ export default function SignInPage() {
                   onChange={() => setIsRememberMe(!isRememberMe)}
                   className="h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
                 />
-                <Label htmlFor="rememberMe" className="ml-2 text-sm text-gray-600 cursor-pointer">
+                <Label
+                  htmlFor="rememberMe"
+                  className="ml-2 text-sm text-gray-600 cursor-pointer"
+                >
                   Remember me
                 </Label>
               </div>
 
               {/* Submit Button */}
-              <Button 
+              <Button
                 type="submit"
                 className="w-full bg-orange-600 hover:bg-orange-700"
                 disabled={loading}
@@ -313,8 +347,10 @@ export default function SignInPage() {
 
             {/* Social Sign In */}
             <div className="space-y-3">
-              <p className="text-sm text-gray-600 text-center">Or continue with</p>
-              
+              <p className="text-sm text-gray-600 text-center">
+                Or continue with
+              </p>
+
               <div className="grid grid-cols-2 gap-3">
                 <Button
                   type="button"
@@ -342,16 +378,6 @@ export default function SignInPage() {
                   </svg>
                   Google
                 </Button>
-                
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleSocialSignIn("github")}
-                  className="w-full"
-                >
-                  <Github className="h-4 w-4 mr-2" />
-                  GitHub
-                </Button>
               </div>
             </div>
 
@@ -361,7 +387,10 @@ export default function SignInPage() {
             <div className="text-center">
               <p className="text-sm text-gray-600">
                 Don't have an account?{" "}
-                <Link href="/auth/signup" className="font-medium text-orange-600 hover:text-orange-700">
+                <Link
+                  href="/auth/signup"
+                  className="font-medium text-orange-600 hover:text-orange-700"
+                >
                   Sign up here
                 </Link>
               </p>
@@ -380,5 +409,5 @@ export default function SignInPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

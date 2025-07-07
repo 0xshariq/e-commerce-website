@@ -2,10 +2,12 @@ import { type NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import sgMail from "@sendgrid/mail"
+import mongoose from "mongoose"
 import { connectDB } from "@/lib/database"
 import { Customer } from "@/models/customer"
 import { Vendor } from "@/models/vendor"
 import { Admin } from "@/models/admin"
+import { Address } from "@/models/address"
 
 // Configure SendGrid
 if (process.env.SENDGRID_API_KEY) {
@@ -332,6 +334,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Initialize address arrays for later use
+    let customerAddressIds: mongoose.Types.ObjectId[] = []
+    let vendorAddressIds: mongoose.Types.ObjectId[] = []
+
     // Sanitize inputs
     const sanitizedFirstName = sanitizeInput(parsedFirstName)
     const sanitizedLastName = sanitizeInput(parsedLastName)
@@ -428,9 +434,10 @@ export async function POST(request: NextRequest) {
     switch (role) {
       case "customer":
         // Create customer address if provided
-        const customerAddresses = []
         if (addressLine1 && city && state && postalCode) {
-          customerAddresses.push({
+          const newAddress = new Address({
+            userId: null, // Will be set after user creation
+            userType: 'customer',
             type: 'home',
             fullName: fullName || `${sanitizedFirstName} ${sanitizedLastName}`,
             phoneNumber: phoneNumber,
@@ -443,6 +450,10 @@ export async function POST(request: NextRequest) {
             country: country || 'India',
             isDefault: true
           })
+          
+          // Save address temporarily without userId
+          const savedAddress = await newAddress.save()
+          customerAddressIds.push(savedAddress._id as mongoose.Types.ObjectId)
         }
 
         newUser = new Customer({
@@ -453,7 +464,7 @@ export async function POST(request: NextRequest) {
           mobileNo: phoneNumber,
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
           gender: gender,
-          addresses: customerAddresses,
+          addresses: customerAddressIds,
           cart: [],
           wishlist: [],
           orders: [],
@@ -510,7 +521,9 @@ export async function POST(request: NextRequest) {
         console.log("🔄 Mapped business type:", businessType, "->", mappedBusinessType)
 
         // Create business address
-        const vendorAddresses = [{
+        const newAddress = new Address({
+          userId: null, // Will be set after user creation
+          userType: 'vendor',
           type: 'registered',
           fullName: `${sanitizedFirstName} ${sanitizedLastName}`,
           phoneNumber: businessPhone || phoneNumber,
@@ -520,7 +533,11 @@ export async function POST(request: NextRequest) {
           postalCode: sanitizeInput(businessPostalCode),
           country: 'India',
           isDefault: true
-        }]
+        })
+        
+        // Save address temporarily without userId
+        const savedAddress = await newAddress.save()
+        vendorAddressIds.push(savedAddress._id as mongoose.Types.ObjectId)
         newUser = new Vendor({
           firstName: sanitizedFirstName,
           lastName: sanitizedLastName,
@@ -536,7 +553,7 @@ export async function POST(request: NextRequest) {
             businessEmail: businessEmail ? sanitizeInput(businessEmail).toLowerCase() : undefined,
             businessPhone: businessPhone || undefined
           },
-          addresses: vendorAddresses,
+          addresses: vendorAddressIds,
           upiId: sanitizeInput(upiId),
           products: [],
           categories: [],
@@ -608,6 +625,19 @@ export async function POST(request: NextRequest) {
     }
 
     await newUser.save()
+
+    // Update address documents with the userId
+    if (role === 'customer' && customerAddressIds.length > 0) {
+      await Address.updateMany(
+        { _id: { $in: customerAddressIds } },
+        { userId: newUser._id }
+      )
+    } else if (role === 'vendor' && vendorAddressIds.length > 0) {
+      await Address.updateMany(
+        { _id: { $in: vendorAddressIds } },
+        { userId: newUser._id }
+      )
+    }
 
     // Send verification email (controlled by environment variables)
     const emailVerificationEnabled = process.env.EMAIL_VERIFICATION_ENABLED === 'true'

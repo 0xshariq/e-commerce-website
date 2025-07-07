@@ -194,8 +194,8 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role
         token.isAdmin = user.isAdmin
         token.mobileNo = user.mobileNo
-        token.shopAddress = user.shopAddress
-        token.upiId = user.upiId
+        token.email = user.email
+        token.image = user.image || null
         token.isSuspended = user.isSuspended
         token.isApproved = user.isApproved
       }
@@ -214,8 +214,8 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as string
         session.user.isAdmin = token.isAdmin as boolean
         session.user.mobileNo = token.mobileNo as string
-        session.user.shopAddress = token.shopAddress as string
-        session.user.upiId = token.upiId as string
+        session.user.email = token.email as string
+        session.user.image = token.image as string | null
         session.user.isSuspended = token.isSuspended as boolean
         session.user.isApproved = token.isApproved as boolean
       }

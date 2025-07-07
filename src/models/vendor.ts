@@ -1,6 +1,5 @@
 import mongoose, { Schema, type Document } from "mongoose"
 import { z } from "zod"
-import { IEmbeddedAddress, EmbeddedAddressSchema } from "./address"
 
 // Business Information interface
 export interface IBusinessInfo {
@@ -13,19 +12,6 @@ export interface IBusinessInfo {
   businessEmail?: string
   businessPhone?: string
   yearEstablished?: number
-}
-
-// Address interface for vendors
-export interface IVendorAddress {
-  type: 'registered' | 'pickup' | 'return' | 'warehouse'
-  addressLine1: string
-  addressLine2?: string
-  city: string
-  state: string
-  postalCode: string
-  country: string
-  landmark?: string
-  isDefault: boolean
 }
 
 // Performance metrics interface
@@ -54,8 +40,8 @@ export interface IVendor extends Document {
   // Business Information
   businessInfo: IBusinessInfo
   
-  // Addresses
-  addresses: IEmbeddedAddress[]
+  // Addresses (references to Address model)
+  addresses: mongoose.Types.ObjectId[]
   
   // Financial Information - Simplified for Razorpay
   upiId: string // Required for payments via Razorpay
@@ -168,52 +154,6 @@ const BusinessInfoSchema = new Schema<IBusinessInfo>({
   }
 }, { _id: false })
 
-// Vendor Address Schema
-const VendorAddressSchema = new Schema<IVendorAddress>({
-  type: {
-    type: String,
-    enum: ['registered', 'pickup', 'return', 'warehouse'],
-    required: true
-  },
-  addressLine1: {
-    type: String,
-    required: [true, "Address line 1 is required"],
-    trim: true
-  },
-  addressLine2: {
-    type: String,
-    trim: true
-  },
-  city: {
-    type: String,
-    required: [true, "City is required"],
-    trim: true
-  },
-  state: {
-    type: String,
-    required: [true, "State is required"],
-    trim: true
-  },
-  postalCode: {
-    type: String,
-    required: [true, "Postal code is required"],
-    match: [/^\d{6}$/, "Please enter a valid 6-digit postal code"]
-  },
-  country: {
-    type: String,
-    default: 'India',
-    trim: true
-  },
-  landmark: {
-    type: String,
-    trim: true
-  },
-  isDefault: {
-    type: Boolean,
-    default: false
-  }
-}, { _id: true })
-
 // Performance Metrics Schema
 const PerformanceMetricsSchema = new Schema<IPerformanceMetrics>({
   totalSales: { type: Number, default: 0, min: 0 },
@@ -320,8 +260,11 @@ const VendorSchema = new Schema<IVendor>(
       required: true
     },
 
-    // Addresses
-    addresses: [EmbeddedAddressSchema],
+    // Addresses (references to Address model)
+    addresses: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Address'
+    }],
 
     // Financial Information - Simplified for Razorpay
     upiId: {
@@ -438,18 +381,6 @@ export const BusinessInfoZodSchema = z.object({
   yearEstablished: z.number().min(1800).max(new Date().getFullYear()).optional()
 })
 
-export const VendorAddressZodSchema = z.object({
-  type: z.enum(['registered', 'pickup', 'return', 'warehouse']),
-  addressLine1: z.string().min(5, "Address line 1 must be at least 5 characters").trim(),
-  addressLine2: z.string().optional(),
-  city: z.string().min(2, "City must be at least 2 characters").trim(),
-  state: z.string().min(2, "State must be at least 2 characters").trim(),
-  postalCode: z.string().regex(/^\d{6}$/, "Please enter a valid 6-digit postal code"),
-  country: z.string().default('India'),
-  landmark: z.string().optional(),
-  isDefault: z.boolean().default(false)
-})
-
 export const VendorZodSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters").max(30, "First name cannot exceed 30 characters").trim(),
   lastName: z.string().min(1, "Last name must be at least 1 character").max(30, "Last name cannot exceed 30 characters").trim(),
@@ -467,7 +398,7 @@ export const VendorZodSchema = z.object({
   mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number"),
   alternatePhone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid alternate phone number").optional(),
   businessInfo: BusinessInfoZodSchema,
-  addresses: z.array(VendorAddressZodSchema).min(1, "At least one address is required"),
+  addresses: z.array(z.string()).min(1, "At least one address is required"), // Array of Address ObjectIds
   upiId: z.string().regex(/^[\w.-]+@[\w.-]+$/, "Please enter a valid UPI ID")
 })
 

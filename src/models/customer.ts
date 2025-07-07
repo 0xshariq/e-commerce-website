@@ -265,8 +265,11 @@ const CustomerSchema = new Schema<ICustomer>(
       type: Date
     },
 
-    // Addresses
-    addresses: [EmbeddedAddressSchema],
+    // Addresses (references to Address model)
+    addresses: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Address'
+    }],
 
     // Shopping Information
     orders: [{
@@ -325,19 +328,6 @@ const CustomerSchema = new Schema<ICustomer>(
 )
 
 // Zod Schemas
-export const AddressZodSchema = z.object({
-  type: z.enum(['home', 'work', 'other']).default('home'),
-  fullName: z.string().min(2, "Full name must be at least 2 characters").trim(),
-  addressLine1: z.string().min(5, "Address line 1 must be at least 5 characters").trim(),
-  addressLine2: z.string().optional(),
-  city: z.string().min(2, "City must be at least 2 characters").trim(),
-  state: z.string().min(2, "State must be at least 2 characters").trim(),
-  postalCode: z.string().regex(/^\d{6}$/, "Please enter a valid 6-digit postal code"),
-  country: z.string().default('India'),
-  phoneNumber: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number"),
-  isDefault: z.boolean().default(false)
-})
-
 export const PaymentMethodZodSchema = z.object({
   type: z.enum(['card', 'upi', 'netbanking', 'wallet']),
   cardNumber: z.string().length(4, "Card number must be last 4 digits").optional(),
@@ -364,13 +354,13 @@ export const CustomerZodSchema = z.object({
   mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number"),
   dateOfBirth: z.date().max(new Date(), "Date of birth cannot be in the future").optional(),
   gender: z.enum(['male', 'female', 'other', 'prefer-not-to-say']).optional(),
-  addresses: z.array(AddressZodSchema).default([]),
+  addresses: z.array(z.string()).default([]), // Array of Address ObjectIds
   paymentMethods: z.array(PaymentMethodZodSchema).default([])
 })
 
 export const CustomerUpdateZodSchema = CustomerZodSchema.partial()
 
-// Export Model
+// Export Model with type
 export const Customer = mongoose.models?.Customer
-  ? mongoose.models.Customer
+  ? (mongoose.models.Customer as mongoose.Model<ICustomer>)
   : mongoose.model<ICustomer>("Customer", CustomerSchema);
