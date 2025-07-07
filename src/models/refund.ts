@@ -1,4 +1,4 @@
-import mongoose, { Schema, type Document } from "mongoose"
+import mongoose, {  type Document } from "mongoose"
 import { z } from "zod"
 
 // TypeScript Interface
