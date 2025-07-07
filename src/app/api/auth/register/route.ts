@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/database"
 import { Customer } from "@/models/customer"
 import { Vendor } from "@/models/vendor"
 import { Admin } from "@/models/admin"
+import TwilioService from "@/lib/twilio"
 
 // Configure SendGrid
 if (process.env.SENDGRID_API_KEY) {
@@ -23,20 +24,40 @@ function generateVerificationCode(): string {
 
 // Mobile verification utility function
 async function sendMobileVerification(phoneNumber: string, verificationCode: string, firstName: string) {
-  // This would integrate with SMS services like Twilio, AWS SNS, etc.
-  // For now, we'll log to console
-  console.log(`
-    📱 SMS VERIFICATION 
-    ==================
-    To: ${phoneNumber}
-    Name: ${firstName}
-    Verification Code: ${verificationCode}
-    Message: Your verification code for ShopHub is ${verificationCode}. Valid for 10 minutes.
+  try {
+    // Check if Twilio is configured
+    const twilioConfig = TwilioService.validateConfiguration()
     
-    ⚠️  Configure SMS service in .env to enable actual SMS sending
-  `)
-  
-  return { success: true, provider: 'console' }
+    if (twilioConfig.isValid) {
+      // Use Twilio for SMS sending
+      const result = await TwilioService.sendManualOTP(phoneNumber, verificationCode)
+      
+      if (result.success) {
+        return { success: true, provider: 'twilio' }
+      } else {
+        console.error('Twilio SMS failed:', result.error)
+        throw new Error(result.message)
+      }
+    } else {
+      // Fallback to console logging if Twilio is not configured
+      console.log(`
+        📱 SMS VERIFICATION (Twilio not configured)
+        ==========================================
+        To: ${phoneNumber}
+        Name: ${firstName}
+        Verification Code: ${verificationCode}
+        Message: Your verification code for ShopHub is ${verificationCode}. Valid for 10 minutes.
+        
+        ⚠️  Configure Twilio credentials in .env to enable actual SMS sending
+        Sender Number: ${TwilioService.getSenderNumber()}
+      `)
+      
+      return { success: true, provider: 'console' }
+    }
+  } catch (error: any) {
+    console.error('Mobile verification error:', error)
+    throw new Error(`SMS sending failed: ${error.message}`)
+  }
 }
 
 async function sendVerificationEmail(email: string, verificationToken: string, verificationCode: string, role: string, firstName: string) {
@@ -673,7 +694,7 @@ export async function POST(request: NextRequest) {
         const mobileResult = await sendMobileVerification(phoneNumber, mobileVerificationCode, sanitizedFirstName)
         mobileSent = mobileResult.success
         mobileProvider = mobileResult.provider
-        console.log(`✅ Verification SMS ${mobileProvider === 'sms-service' ? 'sent via SMS service' : 'logged to console'} for ${phoneNumber}`)
+        console.log(`✅ Verification SMS ${mobileProvider === 'twilio' ? 'sent via Twilio' : 'logged to console'} for ${phoneNumber}`)
       } catch (mobileError) {
         console.error("❌ Failed to send verification SMS:", mobileError)
         

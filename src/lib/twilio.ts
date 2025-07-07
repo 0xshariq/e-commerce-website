@@ -1,5 +1,11 @@
 import twilio from 'twilio'
 
+// Environment variables required for Twilio integration:
+// TWILIO_ACCOUNT_SID=your_account_sid_here
+// TWILIO_AUTH_TOKEN=your_auth_token_here
+// TWILIO_PHONE_NUMBER=+917208179779 (your Twilio phone number)
+// TWILIO_VERIFY_SERVICE_SID=your_verify_service_sid_here (optional, for Verify API)
+
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
 const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID
@@ -108,21 +114,19 @@ export class TwilioService {
       }
     }
   }
-        success: false,
-        message: 'Failed to send OTP',
-        error: error.message
-      }
-    }
-  }
 
   static async verifyOTP(phoneNumber: string, otpCode: string): Promise<VerificationResult> {
     try {
+      // Check if Verify Service is configured
+      if (!serviceSid) {
+        return {
+          success: false,
+          message: 'Twilio Verify Service not configured'
+        }
+      }
+
       // Format phone number to E.164 format if it's an Indian number
-      const formattedNumber = phoneNumber.startsWith('+') 
-        ? phoneNumber 
-        : phoneNumber.startsWith('91') 
-          ? `+${phoneNumber}`
-          : `+91${phoneNumber}`
+      const formattedNumber = this.formatPhoneNumber(phoneNumber)
 
       const verificationCheck = await client.verify.v2
         .services(serviceSid!)
@@ -157,11 +161,7 @@ export class TwilioService {
 
   static async cancelVerification(phoneNumber: string): Promise<VerificationResult> {
     try {
-      const formattedNumber = phoneNumber.startsWith('+') 
-        ? phoneNumber 
-        : phoneNumber.startsWith('91') 
-          ? `+${phoneNumber}`
-          : `+91${phoneNumber}`
+      const formattedNumber = this.formatPhoneNumber(phoneNumber)
 
       // Note: Twilio Verify Service doesn't support listing/canceling pending verifications
       // This is a placeholder for future implementation if needed
@@ -212,6 +212,40 @@ export class TwilioService {
     }
     
     return false
+  }
+
+  // New method to get sender number for display purposes
+  static getSenderNumber(): string {
+    return senderNumber
+  }
+
+  // Method to validate sender number configuration
+  static validateConfiguration(): { isValid: boolean; message: string } {
+    if (!accountSid || !authToken) {
+      return {
+        isValid: false,
+        message: 'Missing Twilio Account SID or Auth Token'
+      }
+    }
+
+    if (!senderNumber) {
+      return {
+        isValid: false,
+        message: 'Missing Twilio sender phone number'
+      }
+    }
+
+    if (!serviceSid) {
+      return {
+        isValid: true,
+        message: 'Twilio configured for manual SMS only (no Verify Service)'
+      }
+    }
+
+    return {
+      isValid: true,
+      message: 'Twilio fully configured'
+    }
   }
 }
 
