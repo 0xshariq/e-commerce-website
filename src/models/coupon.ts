@@ -249,4 +249,6 @@ export const CouponApplicationZodSchema = z.object({
 })
 
 // Export Model
-export const Coupon = mongoose.models.Coupon || mongoose.model<ICoupon>("Coupon", CouponSchema)
+export const Coupon = mongoose.models?.Coupon
+  ? (mongoose.models.Coupon as mongoose.Model<ICoupon>)
+  : mongoose.model<ICoupon>("Coupon", CouponSchema);

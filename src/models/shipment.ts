@@ -70,4 +70,6 @@ export const ShipmentZodSchema = z.object({
 export const ShipmentUpdateZodSchema = ShipmentZodSchema.partial()
 
 // Export Model
-export const Shipment = mongoose.models.Shipment || mongoose.model<IShipment>("Shipment", ShipmentSchema)
+export const Shipment = mongoose.models?.Shipment
+  ? (mongoose.models.Shipment as mongoose.Model<IShipment>)
+  : mongoose.model<IShipment>("Shipment", ShipmentSchema)

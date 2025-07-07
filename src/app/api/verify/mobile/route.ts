@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
+import getServerSession from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { TwilioService } from "@/lib/twilio"
 import { connectDB } from "@/lib/database"
@@ -80,7 +80,7 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
   }
 
   // If user is logged in, update their phone verification status
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession(authOptions) as { user: { id: string, role: string } } | null
   if (session) {
     try {
       await connectDB()

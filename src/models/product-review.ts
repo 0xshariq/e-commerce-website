@@ -61,5 +61,6 @@ export const ProductReviewZodSchema = z.object({
 export const ProductReviewUpdateZodSchema = ProductReviewZodSchema.partial()
 
 // Export Model
-export const ProductReview =
-  mongoose.models.ProductReview || mongoose.model<IProductReview>("ProductReview", ProductReviewSchema)
+export const ProductReview = mongoose.models?.ProductReview
+  ? (mongoose.models.ProductReview as mongoose.Model<IProductReview>)
+  : mongoose.model<IProductReview>("ProductReview", ProductReviewSchema)

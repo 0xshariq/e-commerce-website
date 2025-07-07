@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import CustomerRefundRequests from "./refund-requests"
 import {
   ShoppingCart,
   Heart,
@@ -388,6 +389,11 @@ export default function CustomerDashboardContent({ customerName }: CustomerDashb
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Refund Requests Section */}
+      <div className="mt-6">
+        <CustomerRefundRequests />
       </div>
     </div>
   )

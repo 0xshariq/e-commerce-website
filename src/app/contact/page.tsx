@@ -42,10 +42,20 @@ export default function ContactPage() {
     setSubmitStatus(null)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-      setSubmitStatus("success")
-      form.reset()
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      })
+
+      if (response.ok) {
+        setSubmitStatus("success")
+        form.reset()
+      } else {
+        throw new Error("Failed to send message")
+      }
     } catch (error) {
       setSubmitStatus("error")
     } finally {

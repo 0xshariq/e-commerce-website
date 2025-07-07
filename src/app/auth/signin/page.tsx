@@ -292,9 +292,11 @@ export default function SignInPage() {
 
               {/* Submit Button */}
               <Button 
-                type="submit" 
-                className="w-full bg-orange-600 hover:bg-orange-700" 
+                type="submit"
+                className="w-full bg-orange-600 hover:bg-orange-700"
                 disabled={loading}
+                aria-busy={loading}
+                aria-disabled={loading}
               >
                 {loading ? (
                   <>

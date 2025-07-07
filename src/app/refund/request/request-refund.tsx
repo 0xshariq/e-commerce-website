@@ -11,14 +11,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { ArrowLeft, Upload, AlertCircle } from "lucide-react"
 
 export default function RequestRefundPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { toast } = useToast()
 
   const orderId = searchParams.get("orderId")
   const [orderDetails, setOrderDetails] = useState<any>(null)
@@ -35,11 +34,7 @@ export default function RequestRefundPage() {
 
   useEffect(() => {
     if (!orderId) {
-      toast({
-        title: "Invalid Request",
-        description: "Order ID is required",
-        variant: "destructive",
-      })
+      toast.error("Order ID is required")
       router.push("/customer/dashboard")
       return
     }
@@ -58,11 +53,7 @@ export default function RequestRefundPage() {
         throw new Error("Failed to fetch order details")
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load order details",
-        variant: "destructive",
-      })
+      toast.error("Failed to load order details")
       router.push("/customer/dashboard")
     } finally {
       setLoading(false)
@@ -87,21 +78,14 @@ export default function RequestRefundPage() {
       })
 
       if (response.ok) {
-        toast({
-          title: "Refund Request Submitted",
-          description: "Your refund request has been submitted successfully. You will be notified once it's reviewed.",
-        })
+        toast.success("Your refund request has been submitted successfully. You will be notified once it's reviewed.")
         router.push("/customer/dashboard")
       } else {
         const data = await response.json()
         throw new Error(data.error || "Failed to submit refund request")
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to submit refund request",
-        variant: "destructive",
-      })
+      toast.error(error instanceof Error ? error.message : "Failed to submit refund request")
     } finally {
       setSubmitting(false)
     }

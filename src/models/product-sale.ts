@@ -89,4 +89,6 @@ export const ProductSaleUpdateZodSchema = ProductSaleBaseZodSchema.partial().ref
 )
 
 // Export Model
-export const ProductSale = mongoose.models.ProductSale || mongoose.model<IProductSale>("ProductSale", ProductSaleSchema)
+export const ProductSale = mongoose.models?.ProductSale
+  ? (mongoose.models.ProductSale as mongoose.Model<IProductSale>)
+  : mongoose.model<IProductSale>("ProductSale", ProductSaleSchema)

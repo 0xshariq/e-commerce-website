@@ -1,20 +1,6 @@
 import mongoose, { Schema, type Document } from "mongoose"
 import { z } from "zod"
 
-// Address subdocument interface
-export interface IAddress {
-  type: 'home' | 'work' | 'other'
-  fullName: string
-  addressLine1: string
-  addressLine2?: string
-  city: string
-  state: string
-  postalCode: string
-  country: string
-  phoneNumber: string
-  isDefault: boolean
-}
-
 // Payment method interface
 export interface IPaymentMethod {
   type: 'card' | 'upi' | 'netbanking' | 'wallet'
@@ -67,8 +53,8 @@ export interface ICustomer extends Document {
   accountStatus: 'active' | 'suspended' | 'deleted'
   lastLogin?: Date
   
-  // Addresses
-  addresses: IAddress[]
+  // Addresses (references to Address model)
+  addresses: mongoose.Types.ObjectId[]
   
   // Shopping Information
   orders: string[] // Order IDs
@@ -97,58 +83,6 @@ export interface ICustomer extends Document {
   createdAt: Date
   updatedAt: Date
 }
-
-// Address Schema
-const AddressSchema = new Schema<IAddress>({
-  type: {
-    type: String,
-    enum: ['home', 'work', 'other'],
-    default: 'home'
-  },
-  fullName: {
-    type: String,
-    required: [true, "Full name is required"],
-    trim: true
-  },
-  addressLine1: {
-    type: String,
-    required: [true, "Address line 1 is required"],
-    trim: true
-  },
-  addressLine2: {
-    type: String,
-    trim: true
-  },
-  city: {
-    type: String,
-    required: [true, "City is required"],
-    trim: true
-  },
-  state: {
-    type: String,
-    required: [true, "State is required"],
-    trim: true
-  },
-  postalCode: {
-    type: String,
-    required: [true, "Postal code is required"],
-    match: [/^\d{6}$/, "Please enter a valid 6-digit postal code"]
-  },
-  country: {
-    type: String,
-    default: 'India',
-    trim: true
-  },
-  phoneNumber: {
-    type: String,
-    required: [true, "Phone number is required"],
-    match: [/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number"]
-  },
-  isDefault: {
-    type: Boolean,
-    default: false
-  }
-}, { _id: true })
 
 // Payment Method Schema
 const PaymentMethodSchema = new Schema<IPaymentMethod>({
@@ -332,7 +266,7 @@ const CustomerSchema = new Schema<ICustomer>(
     },
 
     // Addresses
-    addresses: [AddressSchema],
+    addresses: [EmbeddedAddressSchema],
 
     // Shopping Information
     orders: [{
@@ -437,4 +371,6 @@ export const CustomerZodSchema = z.object({
 export const CustomerUpdateZodSchema = CustomerZodSchema.partial()
 
 // Export Model
-export const Customer = mongoose.models.Customer || mongoose.model<ICustomer>("Customer", CustomerSchema)
+export const Customer = mongoose.models?.Customer
+  ? mongoose.models.Customer
+  : mongoose.model<ICustomer>("Customer", CustomerSchema);

@@ -9,6 +9,7 @@ import DashboardStats from "@/components/vendor/dashboard-stats"
 import RevenueChart from "@/components/vendor/revenue-chart"
 import RecentProducts from "@/components/vendor/recent-products"
 import RecentOrders from "@/components/vendor/recent-orders"
+import VendorRefundRequests from "@/components/vendor/refund-requests"
 
 export default async function VendorDashboard() {
   const session = await getServerSession(authOptions) as Session | null
@@ -69,9 +70,14 @@ export default async function VendorDashboard() {
         </div>
 
         {/* Recent Data Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <RecentProducts />
           <RecentOrders />
+        </div>
+
+        {/* Refund Requests */}
+        <div className="mb-8">
+          <VendorRefundRequests />
         </div>
       </div>
     </div>

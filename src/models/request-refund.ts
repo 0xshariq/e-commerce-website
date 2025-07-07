@@ -1,5 +1,24 @@
-import mongoose from "mongoose"
+import mongoose, { Schema, type Document } from "mongoose"
 import { z } from "zod"
+
+// TypeScript Interface
+export interface IRequestRefund extends Document {
+  orderId: mongoose.Types.ObjectId
+  customerId: mongoose.Types.ObjectId
+  vendorId: mongoose.Types.ObjectId
+  amount: number
+  reason: string
+  notes?: string
+  attachments: string[]
+  refundReasonCategory: "duplicate" | "not_as_described" | "defective" | "wrong_item" | "other"
+  requestStatus: "pending" | "accepted" | "rejected"
+  processedBy?: mongoose.Types.ObjectId
+  processedAt?: Date
+  adminNotes?: string
+  rejectionReason?: string
+  createdAt: Date
+  updatedAt: Date
+}
 
 const requestRefundSchema = new mongoose.Schema(
   {
@@ -20,9 +39,10 @@ const requestRefundSchema = new mongoose.Schema(
       enum: ["pending", "accepted", "rejected"],
       default: "pending",
     },
-    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor" },
+    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
     processedAt: { type: Date },
     adminNotes: { type: String },
+    rejectionReason: { type: String },
   },
   { timestamps: true },
 )
@@ -40,8 +60,11 @@ export const RequestRefundZodSchema = z.object({
   processedBy: z.string().optional(),
   processedAt: z.date().optional(),
   adminNotes: z.string().optional(),
+  rejectionReason: z.string().optional(),
 })
 
 export type RequestRefundType = z.infer<typeof RequestRefundZodSchema>
 
-export const RequestRefund = mongoose.models?.RequestRefund || mongoose.model("RequestRefund", requestRefundSchema)
+export const RequestRefund = mongoose.models?.RequestRefund
+  ? (mongoose.models.RequestRefund as mongoose.Model<IRequestRefund>)
+  : mongoose.model<IRequestRefund>("RequestRefund", requestRefundSchema)

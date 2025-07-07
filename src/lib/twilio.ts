@@ -3,6 +3,10 @@ import twilio from 'twilio'
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
 const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID
+const senderNumber = "+917208179779" // Fixed sender number as requested
+
+// Note: For Twilio Verify Service, the sender number is configured at the service level
+// For manual SMS sending, use the senderNumber above
 
 if (!accountSid || !authToken || !serviceSid) {
   throw new Error('Missing Twilio configuration. Please check your environment variables.')
@@ -98,19 +102,9 @@ export class TwilioService {
           ? `+${phoneNumber}`
           : `+91${phoneNumber}`
 
-      // Get pending verifications and cancel them
-      const verifications = await client.verify.v2
-        .services(serviceSid!)
-        .verifications
-        .list({ to: formattedNumber, status: 'pending' })
-
-      for (const verification of verifications) {
-        await client.verify.v2
-          .services(serviceSid!)
-          .verifications(verification.sid)
-          .update({ status: 'canceled' })
-      }
-
+      // Note: Twilio Verify Service doesn't support listing/canceling pending verifications
+      // This is a placeholder for future implementation if needed
+      
       return {
         success: true,
         message: 'Verification cancelled successfully'

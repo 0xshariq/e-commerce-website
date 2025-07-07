@@ -287,4 +287,6 @@ export const PaymentVerificationZodSchema = z.object({
 })
 
 // Export Model
-export const Payment = mongoose.models.Payment || mongoose.model<IPayment>("Payment", PaymentSchema)
+export const Payment = mongoose.models?.Payment
+  ? (mongoose.models.Payment as mongoose.Model<IPayment>)
+  : mongoose.model<IPayment>("Payment", PaymentSchema)

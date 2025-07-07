@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import AdminRefundRequests from "./refund-requests"
 import {
   Users,
   Store,
@@ -497,6 +498,17 @@ export default function AdminDashboardContent() {
               </div>
             ))
           )}
+        </CardContent>
+      </Card>
+
+      {/* Refund Requests */}
+      <Card id="refund-requests" className="bg-gray-800/90 backdrop-blur-sm border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white text-lg sm:text-xl">Refund Requests</CardTitle>
+          <CardDescription className="text-gray-400 text-sm">Manage customer refund requests</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminRefundRequests />
         </CardContent>
       </Card>
     </div>

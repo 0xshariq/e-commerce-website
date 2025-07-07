@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { connectDB } from "@/lib/database"
 import { RequestRefund, RequestRefundZodSchema } from "@/models/request-refund"
@@ -136,13 +136,57 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { requestIds, status, adminNotes } = await request.json()
+    const body = await request.json()
+    const { requestIds, requestId, action, status, adminNotes, rejectionReason } = body
 
+    await connectDB()
+
+    // Handle single request (new admin approve/reject functionality)
+    if (requestId && action) {
+      if (!["accept", "reject"].includes(action)) {
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+      }
+
+      const refundRequest = await RequestRefund.findById(requestId)
+      if (!refundRequest) {
+        return NextResponse.json({ error: "Refund request not found" }, { status: 404 })
+      }
+
+      if (refundRequest.requestStatus !== "pending") {
+        return NextResponse.json({ error: "Request has already been processed" }, { status: 400 })
+      }
+
+      const updateData: any = {
+        requestStatus: action === "accept" ? "accepted" : "rejected",
+        processedBy: session.user.id,
+        processedAt: new Date(),
+        adminNotes: adminNotes || "",
+      }
+
+      if (action === "reject" && rejectionReason) {
+        updateData.rejectionReason = rejectionReason
+      }
+
+      const updatedRequest = await RequestRefund.findByIdAndUpdate(
+        requestId,
+        updateData,
+        { new: true }
+      ).populate([
+        { path: "customerId", select: "firstName lastName email" },
+        { path: "vendorId", select: "businessName email" },
+        { path: "orderId", select: "orderNumber totalAmount" },
+      ])
+
+      return NextResponse.json({ 
+        message: `Refund request ${action}ed successfully`,
+        refundRequest: updatedRequest 
+      })
+    }
+
+    // Handle batch requests (existing functionality)
     if (!requestIds || !Array.isArray(requestIds) || !status) {
       return NextResponse.json({ error: "Request IDs and status are required" }, { status: 400 })
     }
-
-    await connectDB()
 
     const query =
       session.user.role === "vendor"

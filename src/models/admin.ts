@@ -23,12 +23,6 @@ export interface IAdmin extends Document {
   mobileNo: string
   profileImage?: string
   
-  // Professional Information
-  designation: string
-  employeeId?: string
-  department?: string
-  workLocation?: string
-  
   // Account Status
   isActive: boolean
   isEmailVerified: boolean
@@ -177,30 +171,6 @@ const AdminSchema = new Schema<IAdmin>(
       default: ''
     },
 
-    // Professional Information
-    designation: {
-      type: String,
-      required: [true, "Designation is required"],
-      trim: true,
-      minlength: [2, "Designation must be at least 2 characters"],
-      maxlength: [50, "Designation cannot exceed 50 characters"],
-    },
-    employeeId: {
-      type: String,
-      trim: true,
-      maxlength: [20, "Employee ID cannot exceed 20 characters"],
-    },
-    department: {
-      type: String,
-      trim: true,
-      maxlength: [50, "Department cannot exceed 50 characters"],
-    },
-    workLocation: {
-      type: String,
-      trim: true,
-      maxlength: [100, "Work location cannot exceed 100 characters"],
-    },
-
     // Account Status
     isActive: {
       type: Boolean,
@@ -292,14 +262,12 @@ export const AdminZodSchema = z.object({
       /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$/gm,
       "Password must contain at least one uppercase letter, one lowercase letter, and one number",
     ),
-  mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number"),
-  designation: z.string().min(2, "Designation must be at least 2 characters").max(50, "Designation cannot exceed 50 characters").trim(),
-  employeeId: z.string().max(20, "Employee ID cannot exceed 20 characters").optional(),
-  department: z.string().max(50, "Department cannot exceed 50 characters").optional(),
-  workLocation: z.string().max(100, "Work location cannot exceed 100 characters").optional()
+  mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number")
 })
 
 export const AdminUpdateZodSchema = AdminZodSchema.partial()
 
 // Export Model
-export const Admin = mongoose.models.Admin || mongoose.model<IAdmin>("Admin", AdminSchema)
+export const Admin = mongoose.models?.Admin
+  ? (mongoose.models.Admin as mongoose.Model<IAdmin>)
+  : mongoose.model<IAdmin>("Admin", AdminSchema)

@@ -1,5 +1,25 @@
-import mongoose from "mongoose"
+import mongoose, { Schema, type Document } from "mongoose"
 import { z } from "zod"
+
+// TypeScript Interface
+export interface IRefund extends Document {
+  orderId: mongoose.Types.ObjectId
+  customerId: mongoose.Types.ObjectId
+  vendorId: mongoose.Types.ObjectId
+  requestRefundId: mongoose.Types.ObjectId
+  refundAmount: number
+  refundReason: string
+  refundStatus: "initiated" | "processing" | "completed" | "failed"
+  razorpayPaymentId: string
+  razorpayRefundId?: string
+  refundMethod: "original_payment" | "bank_transfer" | "wallet"
+  processedBy?: mongoose.Types.ObjectId
+  refundNotes?: string
+  refundDate?: Date
+  completedAt?: Date
+  createdAt: Date
+  updatedAt: Date
+}
 
 const refundSchema = new mongoose.Schema(
   {
@@ -48,4 +68,6 @@ export const refundZodSchema = z.object({
 
 export type RefundType = z.infer<typeof refundZodSchema>
 
-export const Refund = mongoose.models?.Refund || mongoose.model("Refund", refundSchema)
+export const Refund = mongoose.models?.Refund
+  ? (mongoose.models.Refund as mongoose.Model<IRefund>)
+  : mongoose.model<IRefund>("Refund", refundSchema)

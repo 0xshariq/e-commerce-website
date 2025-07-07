@@ -70,4 +70,6 @@ export const ProductZodSchema = z.object({
 export const ProductUpdateZodSchema = ProductZodSchema.partial()
 
 // Export Model
-export const Product = mongoose.models.Product || mongoose.model<IProduct>("Product", ProductSchema)
+export const Product = mongoose.models?.Product
+  ? (mongoose.models.Product as mongoose.Model<IProduct>)
+  : mongoose.model<IProduct>("Product", ProductSchema)

@@ -78,4 +78,6 @@ export const OrderZodSchema = z.object({
 export const OrderUpdateZodSchema = OrderZodSchema.partial()
 
 // Export Model
-export const Order = mongoose.models.Order || mongoose.model<IOrder>("Order", OrderSchema)
+export const Order = mongoose.models?.Order
+  ? (mongoose.models.Order as mongoose.Model<IOrder>)
+  : mongoose.model<IOrder>("Order", OrderSchema);

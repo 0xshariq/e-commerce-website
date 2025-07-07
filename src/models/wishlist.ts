@@ -40,4 +40,6 @@ export const WishlistZodSchema = z.object({
 export const WishlistUpdateZodSchema = WishlistZodSchema.partial()
 
 // Export Model
-export const Wishlist = mongoose.models.Wishlist || mongoose.model<IWishlist>("Wishlist", WishlistSchema)
+export const Wishlist = mongoose.models?.Wishlist
+  ? (mongoose.models.Wishlist as mongoose.Model<IWishlist>)
+  : mongoose.model<IWishlist>("Wishlist", WishlistSchema)

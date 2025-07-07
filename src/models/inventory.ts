@@ -57,4 +57,6 @@ export const InventoryZodSchema = z.object({
 export const InventoryUpdateZodSchema = InventoryZodSchema.partial()
 
 // Export Model
-export const Inventory = mongoose.models.Inventory || mongoose.model<IInventory>("Inventory", InventorySchema)
+export const Inventory = mongoose.models?.Inventory
+  ? (mongoose.models.Inventory as mongoose.Model<IInventory>)
+  : mongoose.model<IInventory>("Inventory", InventorySchema)

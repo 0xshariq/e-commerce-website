@@ -9,14 +9,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { ArrowLeft, CreditCard, AlertCircle, CheckCircle } from "lucide-react"
 
 export default function RefundPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { toast } = useToast()
+  // Remove useToast hook
 
   const requestId = searchParams.get("requestId")
   const [refundRequest, setRefundRequest] = useState<any>(null)
@@ -26,11 +26,7 @@ export default function RefundPage() {
 
   useEffect(() => {
     if (!requestId) {
-      toast({
-        title: "Invalid Request",
-        description: "Refund request ID is required",
-        variant: "destructive",
-      })
+      toast.error("Refund request ID is required")
       router.push("/customer/dashboard")
       return
     }
@@ -48,11 +44,7 @@ export default function RefundPage() {
         throw new Error("Failed to fetch refund request")
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load refund request details",
-        variant: "destructive",
-      })
+      toast.error("Failed to load refund request details")
       router.push("/customer/dashboard")
     } finally {
       setLoading(false)
@@ -63,11 +55,7 @@ export default function RefundPage() {
     e.preventDefault()
 
     if (!razorpayPaymentId.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your Razorpay Payment ID",
-        variant: "destructive",
-      })
+      toast.error("Please enter your Razorpay Payment ID")
       return
     }
 

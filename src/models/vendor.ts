@@ -1,5 +1,6 @@
 import mongoose, { Schema, type Document } from "mongoose"
 import { z } from "zod"
+import { IEmbeddedAddress, EmbeddedAddressSchema } from "./address"
 
 // Business Information interface
 export interface IBusinessInfo {
@@ -54,7 +55,7 @@ export interface IVendor extends Document {
   businessInfo: IBusinessInfo
   
   // Addresses
-  addresses: IVendorAddress[]
+  addresses: IEmbeddedAddress[]
   
   // Financial Information - Simplified for Razorpay
   upiId: string // Required for payments via Razorpay
@@ -320,7 +321,7 @@ const VendorSchema = new Schema<IVendor>(
     },
 
     // Addresses
-    addresses: [VendorAddressSchema],
+    addresses: [EmbeddedAddressSchema],
 
     // Financial Information - Simplified for Razorpay
     upiId: {
@@ -472,5 +473,7 @@ export const VendorZodSchema = z.object({
 
 export const VendorUpdateZodSchema = VendorZodSchema.partial()
 
-// Export Model
-export const Vendor = mongoose.models.Vendor || mongoose.model<IVendor>("Vendor", VendorSchema)
+// Export Model with type
+export const Vendor = mongoose.models?.Vendor
+  ? (mongoose.models.Vendor as mongoose.Model<IVendor>)
+  : mongoose.model<IVendor>("Vendor", VendorSchema);

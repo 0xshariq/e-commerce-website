@@ -47,4 +47,6 @@ export const CartZodSchema = z.object({
 export const CartUpdateZodSchema = CartZodSchema.partial()
 
 // Export Model
-export const Cart = mongoose.models.Cart || mongoose.model<ICart>("Cart", CartSchema)
+export const Cart = mongoose.models?.Cart
+  ? (mongoose.models.Cart as mongoose.Model<ICart>)
+  : mongoose.model<ICart>("Cart", CartSchema);

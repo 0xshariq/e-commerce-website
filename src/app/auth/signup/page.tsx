@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
+import { INDIAN_STATES } from "@/models/address"
 import { 
   Eye, 
   EyeOff, 
@@ -41,8 +42,17 @@ export default function SignUpPage() {
     phone: "",
     role: "customer",
     
+    // Address fields (customer and optional for others)
+    fullName: "",
+    addressLine1: "",
+    addressLine2: "",
+    landmark: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "India",
+    
     // Customer specific fields
-    address: "",
     dateOfBirth: "",
     gender: "",
     
@@ -52,26 +62,15 @@ export default function SignUpPage() {
     businessCategory: "",
     panNumber: "",
     businessAddress: "",
-    accountHolderName: "",
-    accountNumber: "",
-    ifscCode: "",
-    bankName: "",
-    branchName: "",
-    accountType: "",
+    businessCity: "",
+    businessState: "",
+    businessPostalCode: "",
     upiId: "", // Required for payments
     
     // Vendor specific fields - Optional
     gstNumber: "",
     businessEmail: "",
-    businessPhone: "",
-    
-    // Admin specific fields - Required
-    designation: "",
-    
-    // Admin specific fields - Optional
-    employeeId: "",
-    department: "",
-    workLocation: ""
+    businessPhone: ""
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -147,7 +146,7 @@ export default function SignUpPage() {
       return false
     }
 
-    if (!/^\+?[1-9]\d{1,14}$/.test(formData.phone.replace(/\s/g, ""))) {
+    if (!/^\+?[\d\s\-()]{10,15}$/.test(formData.phone.replace(/\s/g, ""))) {
       setError("Please enter a valid phone number")
       return false
     }
@@ -175,12 +174,9 @@ export default function SignUpPage() {
         businessCategory: "Business category",
         panNumber: "PAN number",
         businessAddress: "Business address",
-        accountHolderName: "Account holder name",
-        accountNumber: "Account number",
-        ifscCode: "IFSC code",
-        bankName: "Bank name",
-        branchName: "Branch name",
-        accountType: "Account type",
+        businessCity: "Business city",
+        businessState: "Business state",
+        businessPostalCode: "Business postal code",
         upiId: "UPI ID"
       }
 
@@ -197,12 +193,6 @@ export default function SignUpPage() {
         return false
       }
 
-      // Validate IFSC format
-      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.ifscCode.toUpperCase())) {
-        setError("Please enter a valid IFSC code (e.g., ABCD0123456)")
-        return false
-      }
-
       // Validate GST if provided
       if (formData.gstNumber && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gstNumber.toUpperCase())) {
         setError("Please enter a valid GST number")
@@ -214,11 +204,18 @@ export default function SignUpPage() {
         setError("Please enter a valid UPI ID (e.g., yourname@upi)")
         return false
       }
+
+      // Validate business postal code
+      if (!/^\d{6}$/.test(formData.businessPostalCode)) {
+        setError("Please enter a valid 6-digit business postal code")
+        return false
+      }
     }
 
-    if (formData.role === "admin") {
-      if (!formData.designation.trim()) {
-        setError("Designation is required for admin accounts")
+    // Validate customer address if provided
+    if (formData.role === "customer" && formData.addressLine1) {
+      if (formData.postalCode && !/^\d{6}$/.test(formData.postalCode)) {
+        setError("Please enter a valid 6-digit postal code")
         return false
       }
     }
@@ -619,15 +616,123 @@ export default function SignUpPage() {
                 </div>
               </div>
 
-              {/* Customer Optional Fields */}
+              {/* Customer Address Fields */}
               {formData.role === "customer" && (
                 <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-gray-900">Additional Information (Optional)</h3>
-                  <p className="text-xs text-gray-500">These fields can be updated later in your profile</p>
+                  <h3 className="text-sm font-medium text-gray-900">Address Information (Optional)</h3>
+                  <p className="text-xs text-gray-500">You can add this later in your profile, or add it now for faster checkout</p>
                   
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name (for delivery)</Label>
+                    <Input
+                      id="fullName"
+                      name="fullName"
+                      type="text"
+                      placeholder="Full name for delivery"
+                      value={formData.fullName}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="addressLine1">Address Line 1</Label>
+                    <Input
+                      id="addressLine1"
+                      name="addressLine1"
+                      type="text"
+                      placeholder="House/Flat number, Building name"
+                      value={formData.addressLine1}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="addressLine2">Address Line 2 (Optional)</Label>
+                    <Input
+                      id="addressLine2"
+                      name="addressLine2"
+                      type="text"
+                      placeholder="Street, Area, Colony"
+                      value={formData.addressLine2}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="landmark">Landmark (Optional)</Label>
+                    <Input
+                      id="landmark"
+                      name="landmark"
+                      type="text"
+                      placeholder="Near school, hospital, etc."
+                      value={formData.landmark}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        name="city"
+                        type="text"
+                        placeholder="City"
+                        value={formData.city}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="state">State</Label>
+                      <Select 
+                        value={formData.state} 
+                        onValueChange={(value) => setFormData({...formData, state: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INDIAN_STATES.map((state) => (
+                            <SelectItem key={state} value={state}>
+                              {state}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="postalCode">Postal Code</Label>
+                      <Input
+                        id="postalCode"
+                        name="postalCode"
+                        type="text"
+                        placeholder="6-digit PIN code"
+                        value={formData.postalCode}
+                        onChange={handleInputChange}
+                        maxLength={6}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="country">Country</Label>
+                      <Input
+                        id="country"
+                        name="country"
+                        type="text"
+                        value={formData.country}
+                        onChange={handleInputChange}
+                        disabled
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dateOfBirth">Date of Birth (Optional)</Label>
                       <Input
                         id="dateOfBirth"
                         name="dateOfBirth"
@@ -638,7 +743,7 @@ export default function SignUpPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="gender">Gender</Label>
+                      <Label htmlFor="gender">Gender (Optional)</Label>
                       <Select 
                         value={formData.gender} 
                         onValueChange={(value) => setFormData({...formData, gender: value})}
@@ -653,22 +758,6 @@ export default function SignUpPage() {
                           <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Textarea
-                        id="address"
-                        name="address"
-                        placeholder="Enter your address (optional)"
-                        value={formData.address}
-                        onChange={handleInputChange}
-                        className="pl-10 min-h-[80px]"
-                        rows={3}
-                      />
                     </div>
                   </div>
                 </div>
@@ -760,123 +849,76 @@ export default function SignUpPage() {
                       <p className="text-xs text-gray-500">Required for tax compliance</p>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="businessAddress">Business Address *</Label>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Textarea
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium text-gray-900">Business Address *</h4>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="businessAddress">Address Line 1 *</Label>
+                        <Input
                           id="businessAddress"
                           name="businessAddress"
-                          placeholder="Enter complete business address"
+                          type="text"
+                          placeholder="Shop/Office number, Building name"
                           value={formData.businessAddress}
                           onChange={handleInputChange}
-                          className="pl-10 min-h-[80px]"
-                          rows={3}
+                          required
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="businessCity">City *</Label>
+                          <Input
+                            id="businessCity"
+                            name="businessCity"
+                            type="text"
+                            placeholder="Business city"
+                            value={formData.businessCity}
+                            onChange={handleInputChange}
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="businessState">State *</Label>
+                          <Select 
+                            value={formData.businessState} 
+                            onValueChange={(value) => setFormData({...formData, businessState: value})}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select state" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {INDIAN_STATES.map((state) => (
+                                <SelectItem key={state} value={state}>
+                                  {state}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="businessPostalCode">Postal Code *</Label>
+                        <Input
+                          id="businessPostalCode"
+                          name="businessPostalCode"
+                          type="text"
+                          placeholder="6-digit PIN code"
+                          value={formData.businessPostalCode}
+                          onChange={handleInputChange}
+                          maxLength={6}
                           required
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Bank Details */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-gray-900">Bank Account Details</h3>
-                    <p className="text-xs text-gray-500">Required for payment settlements</p>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="accountHolderName">Account Holder Name *</Label>
-                        <Input
-                          id="accountHolderName"
-                          name="accountHolderName"
-                          type="text"
-                          placeholder="As per bank records"
-                          value={formData.accountHolderName}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="accountNumber">Account Number *</Label>
-                        <Input
-                          id="accountNumber"
-                          name="accountNumber"
-                          type="text"
-                          placeholder="Enter account number"
-                          value={formData.accountNumber}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="ifscCode">IFSC Code *</Label>
-                        <Input
-                          id="ifscCode"
-                          name="ifscCode"
-                          type="text"
-                          placeholder="ABCD0123456"
-                          value={formData.ifscCode}
-                          onChange={handleInputChange}
-                          className="uppercase"
-                          maxLength={11}
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="accountType">Account Type *</Label>
-                        <Select 
-                          value={formData.accountType} 
-                          onValueChange={(value) => setFormData({...formData, accountType: value})}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select account type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="savings">Savings</SelectItem>
-                            <SelectItem value="current">Current</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="bankName">Bank Name *</Label>
-                        <Input
-                          id="bankName"
-                          name="bankName"
-                          type="text"
-                          placeholder="Enter bank name"
-                          value={formData.bankName}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="branchName">Branch Name *</Label>
-                        <Input
-                          id="branchName"
-                          name="branchName"
-                          type="text"
-                          placeholder="Enter branch name"
-                          value={formData.branchName}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* UPI Information */}
+                  {/* Payment Information */}
                   <div className="space-y-4">
                     <h3 className="text-sm font-medium text-gray-900">Payment Information</h3>
-                    <p className="text-xs text-gray-500">Required for receiving payments</p>
+                    <p className="text-xs text-gray-500">Required for payment settlements</p>
                     
                     <div className="space-y-2">
                       <Label htmlFor="upiId">UPI ID *</Label>
@@ -941,140 +983,18 @@ export default function SignUpPage() {
                 </div>
               )}
 
-              {formData.role === "admin" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-gray-900">Administrative Information</h3>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="designation">Designation *</Label>
-                    <Input
-                      id="designation"
-                      name="designation"
-                      type="text"
-                      placeholder="e.g., Manager, Director, Admin"
-                      value={formData.designation}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-medium text-gray-700">Additional Details (Optional)</h4>
-                    <p className="text-xs text-gray-500">These can be updated later in your profile</p>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="employeeId">Employee ID</Label>
-                        <Input
-                          id="employeeId"
-                          name="employeeId"
-                          type="text"
-                          placeholder="Employee ID"
-                          value={formData.employeeId}
-                          onChange={handleInputChange}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="department">Department</Label>
-                        <Select 
-                          value={formData.department} 
-                          onValueChange={(value) => setFormData({...formData, department: value})}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select department" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="operations">Operations</SelectItem>
-                            <SelectItem value="customer-service">Customer Service</SelectItem>
-                            <SelectItem value="technical">Technical</SelectItem>
-                            <SelectItem value="marketing">Marketing</SelectItem>
-                            <SelectItem value="finance">Finance</SelectItem>
-                            <SelectItem value="management">Management</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="workLocation">Work Location</Label>
-                      <Input
-                        id="workLocation"
-                        name="workLocation"
-                        type="text"
-                        placeholder="Office location or remote"
-                        value={formData.workLocation}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {formData.role === "customer" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-gray-900">Additional Information (Optional)</h3>
-                  <p className="text-xs text-gray-500">These can be updated later in your profile</p>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                      <Input
-                        id="dateOfBirth"
-                        name="dateOfBirth"
-                        type="date"
-                        value={formData.dateOfBirth}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="gender">Gender</Label>
-                      <Select 
-                        value={formData.gender} 
-                        onValueChange={(value) => setFormData({...formData, gender: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                          <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Textarea
-                        id="address"
-                        name="address"
-                        placeholder="Enter your address"
-                        value={formData.address}
-                        onChange={handleInputChange}
-                        className="pl-10 min-h-[80px]"
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Submit Button */}
               <Button 
-                type="submit" 
-                className="w-full bg-orange-600 hover:bg-orange-700" 
+                type="submit"
+                className="w-full bg-orange-600 hover:bg-orange-700 cursor-pointer"
                 disabled={loading}
+                aria-busy={loading}
+                aria-disabled={loading}
               >
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating Account...
+                    Registering...
                   </>
                 ) : (
                   `Create ${roleInfo.title}`
@@ -1129,7 +1049,7 @@ export default function SignUpPage() {
               <p className="text-sm text-gray-600">
                 Already have an account?{" "}
                 <Link href="/auth/signin" className="font-medium text-orange-600 hover:text-orange-700">
-                  Sign in here
+                  Log in here
                 </Link>
               </p>
             </div>

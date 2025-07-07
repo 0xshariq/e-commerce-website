@@ -50,4 +50,6 @@ export const CategoryZodSchema = z.object({
 export const CategoryUpdateZodSchema = CategoryZodSchema.partial()
 
 // Export Model
-export const Category = mongoose.models.Category || mongoose.model<ICategory>("Category", CategorySchema)
+export const Category = mongoose.models?.Category
+  ? (mongoose.models.Category as mongoose.Model<ICategory>)
+  : mongoose.model<ICategory>("Category", CategorySchema);

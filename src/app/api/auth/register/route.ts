@@ -203,6 +203,8 @@ async function sendVerificationEmail(email: string, verificationToken: string, v
   } catch (error: unknown) {
     console.error('❌ SendGrid email error:', error)
     
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
     // Fallback to console logging
     console.log(`
       📧 EMAIL VERIFICATION (SendGrid failed, fallback to console)
@@ -212,10 +214,10 @@ async function sendVerificationEmail(email: string, verificationToken: string, v
       Role: ${role}
       Verification Code: ${verificationCode}
       Verification URL: ${verificationUrl}
-      Error: ${error.message}
+      Error: ${errorMessage}
     `)
     
-    throw new Error(`Email sending failed: ${error.message}`)
+    throw new Error(`Email sending failed: ${errorMessage}`)
   }
 }
 
@@ -226,8 +228,8 @@ function sanitizeInput(input: string): string {
 
 // Utility function to validate phone number format
 function isValidPhoneNumber(phone: string): boolean {
-  const phoneRegex = /^\+?[1-9]\d{1,14}$/
-  return phoneRegex.test(phone)
+  const phoneRegex = /^\+?[\d\s\-()]{10,15}$/
+  return phoneRegex.test(phone.replace(/\s/g, ''))
 }
 
 // Utility function to check password strength
@@ -282,7 +284,14 @@ export async function POST(request: NextRequest) {
       gender,
       
       // Customer specific
-      address,
+      fullName,
+      addressLine1,
+      addressLine2,
+      landmark,
+      city,
+      state,
+      postalCode,
+      country,
       
       // Vendor specific
       businessName,
@@ -291,16 +300,12 @@ export async function POST(request: NextRequest) {
       panNumber,
       gstNumber,
       businessAddress,
+      businessCity,
+      businessState,
+      businessPostalCode,
       businessEmail,
       businessPhone,
-      shopAddress,
       upiId,
-      accountHolderName,
-      accountNumber,
-      ifscCode,
-      bankName,
-      branchName,
-      accountType,
       
       // Admin specific
       employeeId,
@@ -422,19 +427,20 @@ export async function POST(request: NextRequest) {
 
     switch (role) {
       case "customer":
-        // Create basic address if provided
+        // Create customer address if provided
         const customerAddresses = []
-        if (address) {
-          const addressParts = address.split(',').map((part: string) => part.trim())
+        if (addressLine1 && city && state && postalCode) {
           customerAddresses.push({
             type: 'home',
-            fullName: `${sanitizedFirstName} ${sanitizedLastName}`,
-            addressLine1: addressParts[0] || address,
-            city: addressParts[1] || 'Not specified',
-            state: addressParts[2] || 'Not specified',
-            postalCode: addressParts[3] || '000000',
-            country: 'India',
+            fullName: fullName || `${sanitizedFirstName} ${sanitizedLastName}`,
             phoneNumber: phoneNumber,
+            addressLine1: sanitizeInput(addressLine1),
+            addressLine2: addressLine2 ? sanitizeInput(addressLine2) : undefined,
+            landmark: landmark ? sanitizeInput(landmark) : undefined,
+            city: sanitizeInput(city),
+            state: sanitizeInput(state),
+            postalCode: sanitizeInput(postalCode),
+            country: country || 'India',
             isDefault: true
           })
         }
@@ -464,41 +470,57 @@ export async function POST(request: NextRequest) {
         break
 
       case "vendor":
+        console.log("🏪 Creating vendor account with data:", {
+          businessName, businessType, businessCategory, panNumber, businessAddress, upiId
+        })
+        
         // Validate vendor-specific required fields
-        if (!businessName || !businessType || !businessCategory || !panNumber) {
+        if (!businessName || !businessType || !businessCategory || !panNumber || !businessAddress || !businessCity || !businessState || !businessPostalCode) {
           return NextResponse.json(
-            { error: "Business name, business type, business category, and PAN number are required for vendor accounts" },
+            { error: "Business name, business type, business category, PAN number, and complete business address are required for vendor accounts" },
+            { status: 400, headers }
+          )
+        }
+        if (!upiId) {
+          return NextResponse.json(
+            { error: "UPI ID is required for vendor accounts" },
             { status: 400, headers }
           )
         }
 
-        if (!accountHolderName || !accountNumber || !ifscCode || !bankName || !branchName || !accountType) {
+        // Validate business postal code format
+        if (!/^\d{6}$/.test(businessPostalCode)) {
           return NextResponse.json(
-            { error: "Complete bank details are required for vendor accounts" },
+            { error: "Please enter a valid 6-digit business postal code" },
             { status: 400, headers }
           )
         }
 
-        const vendorShopAddress = shopAddress || businessAddress
-        if (!vendorShopAddress) {
-          return NextResponse.json(
-            { error: "Shop address is required for vendor accounts" },
-            { status: 400, headers }
-          )
+        // Validate and map business type
+        const businessTypeMapping: { [key: string]: string } = {
+          'retail': 'individual',
+          'wholesale': 'partnership',
+          'manufacturer': 'private_limited',
+          'distributor': 'partnership',
+          'service': 'individual',
+          'other': 'individual'
         }
+        
+        const mappedBusinessType = businessTypeMapping[businessType] || 'individual'
+        console.log("🔄 Mapped business type:", businessType, "->", mappedBusinessType)
 
         // Create business address
-        const addressParts = vendorShopAddress.split(',').map((part: string) => part.trim())
         const vendorAddresses = [{
           type: 'registered',
-          addressLine1: addressParts[0] || vendorShopAddress,
-          city: addressParts[1] || 'Not specified',
-          state: addressParts[2] || 'Not specified',
-          postalCode: addressParts[3] || '000000',
+          fullName: `${sanitizedFirstName} ${sanitizedLastName}`,
+          phoneNumber: businessPhone || phoneNumber,
+          addressLine1: sanitizeInput(businessAddress),
+          city: sanitizeInput(businessCity),
+          state: sanitizeInput(businessState),
+          postalCode: sanitizeInput(businessPostalCode),
           country: 'India',
           isDefault: true
         }]
-
         newUser = new Vendor({
           firstName: sanitizedFirstName,
           lastName: sanitizedLastName,
@@ -507,7 +529,7 @@ export async function POST(request: NextRequest) {
           mobileNo: phoneNumber,
           businessInfo: {
             businessName: sanitizeInput(businessName),
-            businessType: businessType,
+            businessType: mappedBusinessType,
             businessCategory: sanitizeInput(businessCategory),
             panNumber: sanitizeInput(panNumber.toUpperCase()),
             gstNumber: gstNumber ? sanitizeInput(gstNumber.toUpperCase()) : undefined,
@@ -515,16 +537,7 @@ export async function POST(request: NextRequest) {
             businessPhone: businessPhone || undefined
           },
           addresses: vendorAddresses,
-          bankDetails: {
-            accountHolderName: sanitizeInput(accountHolderName),
-            accountNumber: sanitizeInput(accountNumber),
-            ifscCode: sanitizeInput(ifscCode.toUpperCase()),
-            bankName: sanitizeInput(bankName),
-            branchName: sanitizeInput(branchName),
-            accountType: accountType,
-            isVerified: false
-          },
-          upiId: upiId ? sanitizeInput(upiId) : undefined,
+          upiId: sanitizeInput(upiId),
           products: [],
           categories: [],
           orders: [],
@@ -532,41 +545,48 @@ export async function POST(request: NextRequest) {
           totalProducts: 0,
           activeProducts: 0,
           isApproved: false,
+          isBusinessVerified: false,
+          isGSTVerified: false,
           accountStatus: 'under_review',
+          performanceMetrics: {
+            totalSales: 0,
+            totalOrders: 0,
+            averageRating: 0,
+            totalReviews: 0,
+            responseTime: 24,
+            returnRate: 0,
+            cancellationRate: 0,
+            onTimeDeliveryRate: 100
+          },
+          settings: {
+            autoAcceptOrders: true,
+            maxOrdersPerDay: 100,
+            workingHours: {
+              start: '09:00',
+              end: '18:00',
+              workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+            },
+            notifications: {
+              orderAlerts: true,
+              paymentAlerts: true,
+              inventoryAlerts: true,
+              promotionalEmails: false
+            }
+          },
           ...commonVerificationFields
         })
         message = "Vendor account created successfully! Please check your email for verification instructions and await approval."
         break
 
       case "admin":
-        // Validate admin-specific required fields
-        if (!designation) {
-          return NextResponse.json(
-            { error: "Designation is required for admin accounts" },
-            { status: 400, headers }
-          )
-        }
-
-        // Set default permissions based on role
-        const defaultPermissions = [
-          { module: 'users', actions: ['read'] },
-          { module: 'vendors', actions: ['read'] },
-          { module: 'products', actions: ['read'] },
-          { module: 'orders', actions: ['read'] }
-        ]
-
+        // No extra fields required for admin
         newUser = new Admin({
           firstName: sanitizedFirstName,
           lastName: sanitizedLastName,
           email: sanitizedEmail,
           password: hashedPassword,
           mobileNo: phoneNumber,
-          employeeId: employeeId ? sanitizeInput(employeeId.toUpperCase()) : undefined,
           role: 'admin',
-          department: department || 'general',
-          designation: sanitizeInput(designation),
-          workLocation: workLocation || 'office',
-          permissions: defaultPermissions,
           isActive: true,
           accountStatus: 'active',
           joiningDate: new Date(),
@@ -666,7 +686,7 @@ export async function POST(request: NextRequest) {
     )
 
   } catch (error: unknown) {
-    console.error("Registration error:", error)
+    console.error("❌ Registration error:", error)
     
     // Add security headers to error responses
     const headers = new Headers()
@@ -677,6 +697,7 @@ export async function POST(request: NextRequest) {
     // Handle mongoose validation errors
     if (error && typeof error === 'object' && 'name' in error && error.name === "ValidationError" && 'errors' in error) {
       const validationErrors = Object.values(error.errors as Record<string, { message: string }>).map((err) => err.message)
+      console.error("❌ Validation errors:", validationErrors)
       return NextResponse.json(
         { error: validationErrors.join(", ") },
         { status: 400, headers }
@@ -684,7 +705,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle duplicate key errors
-    if (error?.code === 11000) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
+      console.error("❌ Duplicate key error:", error)
       return NextResponse.json(
         { error: "User with this email already exists" },
         { status: 409, headers }
@@ -692,15 +714,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle JSON parsing errors
-    if (error?.name === "SyntaxError") {
+    if (error && typeof error === 'object' && 'name' in error && error.name === "SyntaxError") {
+      console.error("❌ JSON parsing error:", error)
       return NextResponse.json(
         { error: "Invalid JSON in request body" },
         { status: 400, headers }
       )
     }
 
+    // Log the actual error for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    console.error("❌ Unhandled registration error:", errorMessage, error)
+
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error. Please try again." },
       { status: 500, headers }
     )
   }
