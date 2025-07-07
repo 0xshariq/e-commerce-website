@@ -21,7 +21,7 @@ export interface IEmbeddedAddress {
 
 // TypeScript Interface for standalone address document
 export interface IAddress extends Document {
-  userId: mongoose.Types.ObjectId
+  userId?: mongoose.Types.ObjectId // Made optional
   userType: 'customer' | 'vendor' | 'admin'
   type: AddressType
   fullName: string
@@ -113,7 +113,7 @@ const AddressSchema = new Schema<IAddress>(
   {
     userId: {
       type: Schema.Types.ObjectId,
-      required: [true, "User ID is required"],
+      required: false, // Made optional to allow creation before user exists
       index: true,
     },
     userType: {
@@ -223,7 +223,7 @@ export const EmbeddedAddressZodSchema = z.object({
 
 // Zod Schema for standalone address
 export const AddressZodSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
+  userId: z.string().optional(), // Made optional for initial creation
   userType: z.enum(['customer', 'vendor', 'admin']),
   type: z.enum(['home', 'work', 'business', 'billing', 'shipping', 'registered', 'pickup', 'return', 'warehouse']).default('home'),
   fullName: z

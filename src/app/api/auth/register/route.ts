@@ -433,29 +433,6 @@ export async function POST(request: NextRequest) {
 
     switch (role) {
       case "customer":
-        // Create customer address if provided
-        if (addressLine1 && city && state && postalCode) {
-          const newAddress = new Address({
-            userId: null, // Will be set after user creation
-            userType: 'customer',
-            type: 'home',
-            fullName: fullName || `${sanitizedFirstName} ${sanitizedLastName}`,
-            phoneNumber: phoneNumber,
-            addressLine1: sanitizeInput(addressLine1),
-            addressLine2: addressLine2 ? sanitizeInput(addressLine2) : undefined,
-            landmark: landmark ? sanitizeInput(landmark) : undefined,
-            city: sanitizeInput(city),
-            state: sanitizeInput(state),
-            postalCode: sanitizeInput(postalCode),
-            country: country || 'India',
-            isDefault: true
-          })
-          
-          // Save address temporarily without userId
-          const savedAddress = await newAddress.save()
-          customerAddressIds.push(savedAddress._id as mongoose.Types.ObjectId)
-        }
-
         newUser = new Customer({
           firstName: sanitizedFirstName,
           lastName: sanitizedLastName,
@@ -520,24 +497,6 @@ export async function POST(request: NextRequest) {
         const mappedBusinessType = businessTypeMapping[businessType] || 'individual'
         console.log("🔄 Mapped business type:", businessType, "->", mappedBusinessType)
 
-        // Create business address
-        const newAddress = new Address({
-          userId: null, // Will be set after user creation
-          userType: 'vendor',
-          type: 'registered',
-          fullName: `${sanitizedFirstName} ${sanitizedLastName}`,
-          phoneNumber: businessPhone || phoneNumber,
-          addressLine1: sanitizeInput(businessAddress),
-          city: sanitizeInput(businessCity),
-          state: sanitizeInput(businessState),
-          postalCode: sanitizeInput(businessPostalCode),
-          country: 'India',
-          isDefault: true
-        })
-        
-        // Save address temporarily without userId
-        const savedAddress = await newAddress.save()
-        vendorAddressIds.push(savedAddress._id as mongoose.Types.ObjectId)
         newUser = new Vendor({
           firstName: sanitizedFirstName,
           lastName: sanitizedLastName,
@@ -626,17 +585,51 @@ export async function POST(request: NextRequest) {
 
     await newUser.save()
 
-    // Update address documents with the userId
-    if (role === 'customer' && customerAddressIds.length > 0) {
-      await Address.updateMany(
-        { _id: { $in: customerAddressIds } },
-        { userId: newUser._id }
-      )
-    } else if (role === 'vendor' && vendorAddressIds.length > 0) {
-      await Address.updateMany(
-        { _id: { $in: vendorAddressIds } },
-        { userId: newUser._id }
-      )
+    // Create addresses after user creation
+    if (role === 'customer' && addressLine1 && city && state && postalCode) {
+      const newAddress = new Address({
+        userId: newUser._id,
+        userType: 'customer',
+        type: 'home',
+        fullName: fullName || `${sanitizedFirstName} ${sanitizedLastName}`,
+        phoneNumber: phoneNumber,
+        addressLine1: sanitizeInput(addressLine1),
+        addressLine2: addressLine2 ? sanitizeInput(addressLine2) : undefined,
+        landmark: landmark ? sanitizeInput(landmark) : undefined,
+        city: sanitizeInput(city),
+        state: sanitizeInput(state),
+        postalCode: sanitizeInput(postalCode),
+        country: country || 'India',
+        isDefault: true
+      })
+      
+      const savedAddress = await newAddress.save()
+      customerAddressIds.push(savedAddress._id as mongoose.Types.ObjectId)
+      
+      // Update user with address reference
+      (newUser as any).addresses = customerAddressIds
+      await newUser.save()
+    } else if (role === 'vendor' && businessAddress && businessCity && businessState && businessPostalCode) {
+      const newAddress = new Address({
+        userId: newUser._id,
+        userType: 'vendor',
+        type: 'registered',
+        fullName: `${sanitizedFirstName} ${sanitizedLastName}`,
+        phoneNumber: businessPhone || phoneNumber,
+        addressLine1: sanitizeInput(businessAddress),
+        city: sanitizeInput(businessCity),
+        state: sanitizeInput(businessState),
+        postalCode: sanitizeInput(businessPostalCode),
+        country: 'India',
+        isDefault: true
+      })
+      
+      const savedAddress = await newAddress.save()
+      vendorAddressIds.push(savedAddress._id as mongoose.Types.ObjectId)
+      
+      // Update user with address reference
+      (newUser as any).addresses = vendorAddressIds
+      await newUser.save()
     }
 
     // Send verification email (controlled by environment variables)
