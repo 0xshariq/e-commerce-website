@@ -6,7 +6,6 @@ import { connectDB } from "@/lib/database"
 import { Customer } from "@/models/customer"
 import { Vendor } from "@/models/vendor"
 import { Admin } from "@/models/admin"
-import { Address, type IAddress } from "@/models/address"
 
 // Configure SendGrid
 if (process.env.SENDGRID_API_KEY) {
@@ -20,6 +19,24 @@ function generateVerificationToken(): string {
 
 function generateVerificationCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString()
+}
+
+// Mobile verification utility function
+async function sendMobileVerification(phoneNumber: string, verificationCode: string, firstName: string) {
+  // This would integrate with SMS services like Twilio, AWS SNS, etc.
+  // For now, we'll log to console
+  console.log(`
+    📱 SMS VERIFICATION 
+    ==================
+    To: ${phoneNumber}
+    Name: ${firstName}
+    Verification Code: ${verificationCode}
+    Message: Your verification code for ShopHub is ${verificationCode}. Valid for 10 minutes.
+    
+    ⚠️  Configure SMS service in .env to enable actual SMS sending
+  `)
+  
+  return { success: true, provider: 'console' }
 }
 
 async function sendVerificationEmail(email: string, verificationToken: string, verificationCode: string, role: string, firstName: string) {
@@ -407,10 +424,12 @@ export async function POST(request: NextRequest) {
     // Hash password with higher cost for better security
     const hashedPassword = await bcrypt.hash(password, 14)
 
-    // Generate email verification token and code
+    // Generate email and mobile verification tokens and codes
     const verificationToken = generateVerificationToken()
-    const verificationCode = generateVerificationCode()
+    const emailVerificationCode = generateVerificationCode()
+    const mobileVerificationCode = generateVerificationCode()
     const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+    const mobileVerificationExpiry = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
 
     // Create user based on role
     let newUser
@@ -419,15 +438,34 @@ export async function POST(request: NextRequest) {
     // Common verification fields for all roles
     const commonVerificationFields = {
       emailVerificationToken: verificationToken,
-      emailVerificationCode: verificationCode,
+      emailVerificationCode: emailVerificationCode,
       emailVerificationExpiry: verificationTokenExpiry,
-      isEmailVerified: false, // Set to false by default, can be made required later
-      // mobileVerificationCode: null, // For future mobile verification
-      // isMobileVerified: false,
+      isEmailVerified: false,
+      mobileVerificationCode: mobileVerificationCode,
+      mobileVerificationExpiry: mobileVerificationExpiry,
+      isMobileVerified: false,
     }
 
     switch (role) {
       case "customer":
+        // Prepare customer addresses array
+        const customerAddresses = []
+        if (addressLine1 && city && state && postalCode) {
+          customerAddresses.push({
+            type: 'home',
+            fullName: fullName || `${sanitizedFirstName} ${sanitizedLastName}`,
+            phoneNumber: phoneNumber,
+            addressLine1: sanitizeInput(addressLine1),
+            addressLine2: addressLine2 ? sanitizeInput(addressLine2) : undefined,
+            landmark: landmark ? sanitizeInput(landmark) : undefined,
+            city: sanitizeInput(city),
+            state: sanitizeInput(state),
+            postalCode: sanitizeInput(postalCode),
+            country: country || 'India',
+            isDefault: true
+          })
+        }
+
         newUser = new Customer({
           firstName: sanitizedFirstName,
           lastName: sanitizedLastName,
@@ -436,7 +474,7 @@ export async function POST(request: NextRequest) {
           mobileNo: phoneNumber,
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
           gender: gender,
-          addresses: [], // Initialize as empty array
+          addresses: customerAddresses,
           cart: [],
           wishlist: [],
           orders: [],
@@ -449,7 +487,7 @@ export async function POST(request: NextRequest) {
           membershipTier: 'bronze',
           ...commonVerificationFields
         })
-        message = "Customer account created successfully! Please check your email for verification instructions."
+        message = "Customer account created successfully! Please check your email and mobile for verification instructions."
         break
 
       case "vendor":
@@ -492,6 +530,24 @@ export async function POST(request: NextRequest) {
         const mappedBusinessType = businessTypeMapping[businessType] || 'individual'
         console.log("🔄 Mapped business type:", businessType, "->", mappedBusinessType)
 
+        // Prepare vendor addresses array
+        const vendorAddresses = []
+        if (businessAddress && businessCity && businessState && businessPostalCode) {
+          vendorAddresses.push({
+            type: 'registered',
+            fullName: `${sanitizedFirstName} ${sanitizedLastName}`,
+            phoneNumber: businessPhone || phoneNumber,
+            addressLine1: sanitizeInput(businessAddress),
+            addressLine2: undefined,
+            landmark: undefined,
+            city: sanitizeInput(businessCity),
+            state: sanitizeInput(businessState),
+            postalCode: sanitizeInput(businessPostalCode),
+            country: 'India',
+            isDefault: true
+          })
+        }
+
         newUser = new Vendor({
           firstName: sanitizedFirstName,
           lastName: sanitizedLastName,
@@ -507,7 +563,7 @@ export async function POST(request: NextRequest) {
             businessEmail: businessEmail ? sanitizeInput(businessEmail).toLowerCase() : undefined,
             businessPhone: businessPhone || undefined
           },
-          addresses: [], // Initialize as empty array
+          addresses: vendorAddresses,
           upiId: sanitizeInput(upiId),
           products: [],
           categories: [],
@@ -546,7 +602,7 @@ export async function POST(request: NextRequest) {
           },
           ...commonVerificationFields
         })
-        message = "Vendor account created successfully! Please check your email for verification instructions and await approval."
+        message = "Vendor account created successfully! Please check your email and mobile for verification instructions and await approval."
         break
 
       case "admin":
@@ -568,7 +624,7 @@ export async function POST(request: NextRequest) {
           emergencyContacts: [],
           ...commonVerificationFields
         })
-        message = "Admin account created successfully! Please check your email for verification instructions."
+        message = "Admin account created successfully! Please check your email and mobile for verification instructions."
         break
 
       default:
@@ -580,30 +636,21 @@ export async function POST(request: NextRequest) {
 
     await newUser.save()
 
-    // Create addresses after user creation (optional for now)
-    // Note: Address creation is temporarily disabled due to model import issues
-    // This will be fixed in a separate update
-    console.log("✅ User created successfully, address creation will be handled separately")
-
-    // TODO: Re-enable address creation once model import issues are resolved
-    /*
-    if (role === 'customer' && addressLine1 && city && state && postalCode) {
-      // Customer address creation logic
-    } else if (role === 'vendor' && businessAddress && businessCity && businessState && businessPostalCode) {
-      // Vendor address creation logic  
-    }
-    */
-
-    // Send verification email (controlled by environment variables)
+    // Send verification email and SMS (controlled by environment variables)
     const emailVerificationEnabled = process.env.EMAIL_VERIFICATION_ENABLED === 'true'
     const emailVerificationRequired = process.env.EMAIL_VERIFICATION_REQUIRED === 'true'
+    const mobileVerificationEnabled = process.env.MOBILE_VERIFICATION_ENABLED === 'true'
+    const mobileVerificationRequired = process.env.MOBILE_VERIFICATION_REQUIRED === 'true'
     
     let emailSent = false
     let emailProvider = 'none'
+    let mobileSent = false
+    let mobileProvider = 'none'
     
+    // Send email verification
     if (emailVerificationEnabled) {
       try {
-        const emailResult = await sendVerificationEmail(sanitizedEmail, verificationToken, verificationCode, role, sanitizedFirstName)
+        const emailResult = await sendVerificationEmail(sanitizedEmail, verificationToken, emailVerificationCode, role, sanitizedFirstName)
         emailSent = emailResult.success
         emailProvider = emailResult.provider
         console.log(`✅ Verification email ${emailProvider === 'sendgrid' ? 'sent via SendGrid' : 'logged to console'} for ${sanitizedEmail}`)
@@ -617,7 +664,26 @@ export async function POST(request: NextRequest) {
             { status: 500, headers }
           )
         }
-        // Otherwise, continue without failing the registration since email verification is optional
+      }
+    }
+
+    // Send mobile verification
+    if (mobileVerificationEnabled) {
+      try {
+        const mobileResult = await sendMobileVerification(phoneNumber, mobileVerificationCode, sanitizedFirstName)
+        mobileSent = mobileResult.success
+        mobileProvider = mobileResult.provider
+        console.log(`✅ Verification SMS ${mobileProvider === 'sms-service' ? 'sent via SMS service' : 'logged to console'} for ${phoneNumber}`)
+      } catch (mobileError) {
+        console.error("❌ Failed to send verification SMS:", mobileError)
+        
+        // If mobile verification is required and sending fails, return error
+        if (mobileVerificationRequired) {
+          return NextResponse.json(
+            { error: "Registration failed: Unable to send verification SMS. Please try again later." },
+            { status: 500, headers }
+          )
+        }
       }
     }
 
@@ -626,6 +692,7 @@ export async function POST(request: NextRequest) {
     delete (userResponse as any).password
     delete (userResponse as any).emailVerificationToken
     delete (userResponse as any).emailVerificationCode
+    delete (userResponse as any).mobileVerificationCode
 
     // Create a clean response object
     const responseUser: any = {
@@ -636,6 +703,7 @@ export async function POST(request: NextRequest) {
       mobileNo: userResponse.mobileNo,
       role,
       isEmailVerified: userResponse.isEmailVerified,
+      isMobileVerified: userResponse.isMobileVerified,
       createdAt: userResponse.createdAt
     }
 
@@ -659,13 +727,11 @@ export async function POST(request: NextRequest) {
           emailRequired: emailVerificationRequired,
           emailSent: emailSent,
           emailProvider: emailProvider,
-          mobileEnabled: process.env.MOBILE_VERIFICATION_ENABLED === 'true',
-          mobileRequired: process.env.MOBILE_VERIFICATION_REQUIRED === 'true',
-          instructions: emailSent 
-            ? `Please check your email (${sanitizedEmail}) for verification instructions. ${emailVerificationRequired ? 'Email verification is required to access your account.' : 'Email verification is recommended for account security.'}`
-            : emailVerificationEnabled 
-              ? "Email verification is enabled but the verification email could not be sent. Please try requesting a new verification email."
-              : "Email verification is currently disabled."
+          mobileEnabled: mobileVerificationEnabled,
+          mobileRequired: mobileVerificationRequired,
+          mobileSent: mobileSent,
+          mobileProvider: mobileProvider,
+          instructions: `${emailSent ? `Please check your email (${sanitizedEmail}) for verification instructions.` : ''} ${mobileSent ? `Please check your mobile (${phoneNumber}) for verification code.` : ''} ${emailVerificationRequired || mobileVerificationRequired ? 'Verification is required to access your account.' : 'Verification is recommended for account security.'}`
         }
       },
       { status: 201, headers }

@@ -7,24 +7,6 @@ import { Facebook, Twitter, Instagram, Youtube, Mail, Phone, MapPin, Package } f
 export function Footer() {
   return (
     <footer className="bg-gray-900 border-t border-gray-800">
-      {/* Newsletter Section */}
-      <div className="bg-gray-800 py-12">
-        <div className="container mx-auto px-4">
-          <div className="text-center">
-            <h3 className="text-2xl font-bold text-white mb-4">Stay Updated with Our Latest Deals</h3>
-            <p className="text-gray-400 mb-6">Subscribe to our newsletter and never miss out on exclusive offers</p>
-            <div className="flex max-w-md mx-auto gap-2">
-              <Input
-                type="email"
-                placeholder="Enter your email"
-                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-              />
-              <Button className="bg-orange-600 hover:bg-orange-700">Subscribe</Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main Footer Content */}
       <div className="py-16">
         <div className="container mx-auto px-4">

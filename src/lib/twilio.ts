@@ -3,12 +3,12 @@ import twilio from 'twilio'
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
 const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID
-const senderNumber = "+917208179779" // Fixed sender number as requested
+const senderNumber = process.env.TWILIO_PHONE_NUMBER || "+917208179779" // Use env var or fallback
 
 // Note: For Twilio Verify Service, the sender number is configured at the service level
 // For manual SMS sending, use the senderNumber above
 
-if (!accountSid || !authToken || !serviceSid) {
+if (!accountSid || !authToken) {
   throw new Error('Missing Twilio configuration. Please check your environment variables.')
 }
 
@@ -24,12 +24,14 @@ export interface VerificationResult {
 export class TwilioService {
   static async sendOTP(phoneNumber: string, channel: 'sms' | 'whatsapp' = 'sms'): Promise<VerificationResult> {
     try {
+      // Check if Verify Service is configured
+      if (!serviceSid) {
+        console.warn('Twilio Verify Service not configured, falling back to manual SMS')
+        return this.sendManualOTP(phoneNumber)
+      }
+
       // Format phone number to E.164 format if it's an Indian number
-      const formattedNumber = phoneNumber.startsWith('+') 
-        ? phoneNumber 
-        : phoneNumber.startsWith('91') 
-          ? `+${phoneNumber}`
-          : `+91${phoneNumber}`
+      const formattedNumber = this.formatPhoneNumber(phoneNumber)
 
       const verification = await client.verify.v2
         .services(serviceSid!)
@@ -47,6 +49,65 @@ export class TwilioService {
     } catch (error: any) {
       console.error('Twilio OTP send error:', error)
       return {
+        success: false,
+        message: 'Failed to send OTP',
+        error: error.message
+      }
+    }
+  }
+
+  static async sendManualOTP(phoneNumber: string, otpCode?: string): Promise<VerificationResult> {
+    try {
+      // Generate OTP if not provided
+      const otp = otpCode || Math.floor(100000 + Math.random() * 900000).toString()
+      
+      const formattedNumber = this.formatPhoneNumber(phoneNumber)
+      
+      const message = await client.messages.create({
+        body: `Your verification code for ShopHub is ${otp}. Valid for 10 minutes. Do not share this code with anyone.`,
+        from: senderNumber,
+        to: formattedNumber
+      })
+
+      return {
+        success: true,
+        message: 'OTP sent successfully via SMS',
+        status: message.status
+      }
+    } catch (error: any) {
+      console.error('Twilio manual SMS error:', error)
+      return {
+        success: false,
+        message: 'Failed to send SMS',
+        error: error.message
+      }
+    }
+  }
+
+  static async sendCustomMessage(phoneNumber: string, message: string): Promise<VerificationResult> {
+    try {
+      const formattedNumber = this.formatPhoneNumber(phoneNumber)
+      
+      const smsMessage = await client.messages.create({
+        body: message,
+        from: senderNumber,
+        to: formattedNumber
+      })
+
+      return {
+        success: true,
+        message: 'Message sent successfully',
+        status: smsMessage.status
+      }
+    } catch (error: any) {
+      console.error('Twilio custom message error:', error)
+      return {
+        success: false,
+        message: 'Failed to send message',
+        error: error.message
+      }
+    }
+  }
         success: false,
         message: 'Failed to send OTP',
         error: error.message

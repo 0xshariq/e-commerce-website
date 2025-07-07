@@ -19,7 +19,7 @@ export default function TermsPage() {
             <h1 className="text-3xl font-bold text-gray-900">Terms and Conditions</h1>
           </div>
           <p className="text-gray-600">
-            Last updated: December 2024
+            Last updated: July 2025
           </p>
         </div>
 
@@ -285,9 +285,9 @@ export default function TermsPage() {
                 If you have questions about these Terms and Conditions, please contact us:
               </p>
               <div className="space-y-2 text-gray-700">
-                <p><strong>Email:</strong> legal@ecommerce.com</p>
-                <p><strong>Phone:</strong> +91 12345 67890</p>
-                <p><strong>Address:</strong> Legal Department, E-commerce Platform, India</p>
+                <p><strong>Email:</strong>khanshariq92213@gmail.com</p>
+                <p><strong>Phone:</strong> +91 72081 79779</p>
+                <p><strong>Address:</strong>Mumbai , India</p>
               </div>
               <Separator className="my-4" />
               <p className="text-sm text-gray-600">

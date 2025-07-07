@@ -1,6 +1,21 @@
 import mongoose, { Schema, type Document } from "mongoose"
 import { z } from "zod"
 
+// Address interface for embedded addresses
+export interface IAddress {
+  type: 'registered' | 'pickup' | 'warehouse' | 'other'
+  fullName: string
+  phoneNumber: string
+  addressLine1: string
+  addressLine2?: string
+  landmark?: string
+  city: string
+  state: string
+  postalCode: string
+  country: string
+  isDefault: boolean
+}
+
 // Business Information interface
 export interface IBusinessInfo {
   businessName: string
@@ -40,8 +55,8 @@ export interface IVendor extends Document {
   // Business Information
   businessInfo: IBusinessInfo
   
-  // Addresses (references to Address model)
-  addresses: mongoose.Types.ObjectId[]
+  // Addresses (embedded documents)
+  addresses: IAddress[]
   
   // Financial Information - Simplified for Razorpay
   upiId: string // Required for payments via Razorpay
@@ -102,6 +117,77 @@ export interface IVendor extends Document {
   createdAt: Date
   updatedAt: Date
 }
+
+// Address Schema for embedded documents
+const AddressSchema = new Schema<IAddress>({
+  type: {
+    type: String,
+    enum: ['registered', 'pickup', 'warehouse', 'other'],
+    required: [true, "Address type is required"],
+    default: 'registered'
+  },
+  fullName: {
+    type: String,
+    required: [true, "Full name is required"],
+    trim: true,
+    minlength: [2, "Full name must be at least 2 characters"],
+    maxlength: [60, "Full name cannot exceed 60 characters"],
+  },
+  phoneNumber: {
+    type: String,
+    required: [true, "Phone number is required"],
+    match: [/^\+?[\d\s\-()]{10,15}$/, "Please enter a valid phone number"],
+  },
+  addressLine1: {
+    type: String,
+    required: [true, "Address line 1 is required"],
+    trim: true,
+    minlength: [5, "Address line 1 must be at least 5 characters"],
+    maxlength: [100, "Address line 1 cannot exceed 100 characters"],
+  },
+  addressLine2: {
+    type: String,
+    trim: true,
+    maxlength: [100, "Address line 2 cannot exceed 100 characters"],
+  },
+  landmark: {
+    type: String,
+    trim: true,
+    maxlength: [50, "Landmark cannot exceed 50 characters"],
+  },
+  city: {
+    type: String,
+    required: [true, "City is required"],
+    trim: true,
+    minlength: [2, "City must be at least 2 characters"],
+    maxlength: [50, "City cannot exceed 50 characters"],
+  },
+  state: {
+    type: String,
+    required: [true, "State is required"],
+    trim: true,
+    minlength: [2, "State must be at least 2 characters"],
+    maxlength: [50, "State cannot exceed 50 characters"],
+  },
+  postalCode: {
+    type: String,
+    required: [true, "Postal code is required"],
+    trim: true,
+    match: [/^\d{6}$/, "Please enter a valid 6-digit postal code"],
+  },
+  country: {
+    type: String,
+    required: [true, "Country is required"],
+    trim: true,
+    default: 'India',
+    minlength: [2, "Country must be at least 2 characters"],
+    maxlength: [50, "Country cannot exceed 50 characters"],
+  },
+  isDefault: {
+    type: Boolean,
+    default: false,
+  },
+}, { _id: true })
 
 // Business Info Schema
 const BusinessInfoSchema = new Schema<IBusinessInfo>({
@@ -260,11 +346,8 @@ const VendorSchema = new Schema<IVendor>(
       required: true
     },
 
-    // Addresses (references to Address model)
-    addresses: [{
-      type: Schema.Types.ObjectId,
-      ref: 'Address'
-    }],
+    // Addresses (embedded documents)
+    addresses: [AddressSchema],
 
     // Financial Information - Simplified for Razorpay
     upiId: {
@@ -369,6 +452,20 @@ const VendorSchema = new Schema<IVendor>(
 )
 
 // Zod Schemas
+export const AddressZodSchema = z.object({
+  type: z.enum(['registered', 'pickup', 'warehouse', 'other']).default('registered'),
+  fullName: z.string().min(2, "Full name must be at least 2 characters").max(60, "Full name cannot exceed 60 characters").trim(),
+  phoneNumber: z.string().regex(/^\+?[\d\s\-()]{10,15}$/, "Please enter a valid phone number"),
+  addressLine1: z.string().min(5, "Address line 1 must be at least 5 characters").max(100, "Address line 1 cannot exceed 100 characters").trim(),
+  addressLine2: z.string().max(100, "Address line 2 cannot exceed 100 characters").trim().optional(),
+  landmark: z.string().max(50, "Landmark cannot exceed 50 characters").trim().optional(),
+  city: z.string().min(2, "City must be at least 2 characters").max(50, "City cannot exceed 50 characters").trim(),
+  state: z.string().min(2, "State must be at least 2 characters").max(50, "State cannot exceed 50 characters").trim(),
+  postalCode: z.string().regex(/^\d{6}$/, "Please enter a valid 6-digit postal code").trim(),
+  country: z.string().min(2, "Country must be at least 2 characters").max(50, "Country cannot exceed 50 characters").trim().default('India'),
+  isDefault: z.boolean().default(false)
+})
+
 export const BusinessInfoZodSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters").max(100, "Business name cannot exceed 100 characters").trim(),
   businessType: z.enum(['individual', 'partnership', 'private_limited', 'public_limited', 'llp']),
@@ -398,7 +495,7 @@ export const VendorZodSchema = z.object({
   mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number"),
   alternatePhone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid alternate phone number").optional(),
   businessInfo: BusinessInfoZodSchema,
-  addresses: z.array(z.string()).min(1, "At least one address is required"), // Array of Address ObjectIds
+  addresses: z.array(AddressZodSchema).default([]), // Array of embedded Address objects
   upiId: z.string().regex(/^[\w.-]+@[\w.-]+$/, "Please enter a valid UPI ID")
 })
 
