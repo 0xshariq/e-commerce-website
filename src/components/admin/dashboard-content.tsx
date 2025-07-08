@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { formatCurrency, formatDate, timeAgo } from "@/utils/formatting"
 import {
   Users,
   Store,
@@ -16,10 +18,21 @@ import {
   ShoppingCart,
   BarChart3,
   RefreshCw,
-  Loader2
+  Loader2,
+  Shield,
+  Activity,
+  AlertCircle
 } from "lucide-react"
 
 interface AdminDashboardData {
+  profile?: {
+    firstName: string
+    lastName: string
+    isActive: boolean
+    totalActions: number
+    totalLogins: number
+    lastPasswordChange: string
+  }
   stats: {
     totalRevenue: number
     monthlyRevenue: number
@@ -82,14 +95,26 @@ export default function AdminDashboardClient() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/dashboard/admin")
       
-      if (!response.ok) {
+      // Use unified profile API and dashboard API
+      const [profileResponse, dashboardResponse] = await Promise.all([
+        fetch("/api/profile"),
+        fetch("/api/dashboard/admin")
+      ])
+      
+      if (!profileResponse.ok || !dashboardResponse.ok) {
         throw new Error("Failed to fetch dashboard data")
       }
 
-      const result = await response.json()
-      setData(result)
+      const [profileResult, dashboardResult] = await Promise.all([
+        profileResponse.json(),
+        dashboardResponse.json()
+      ])
+
+      setData({
+        profile: profileResult.user,
+        ...dashboardResult
+      })
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred")
@@ -105,10 +130,10 @@ export default function AdminDashboardClient() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="flex items-center gap-2 text-white">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Loading dashboard data...
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-gray-600">Loading admin dashboard...</p>
         </div>
       </div>
     )
@@ -116,22 +141,53 @@ export default function AdminDashboardClient() {
 
   if (error || !data) {
     return (
-      <div className="flex flex-col items-center justify-center p-8">
-        <AlertTriangle className="h-8 w-8 text-red-400 mb-2" />
-        <p className="text-red-400 mb-4">{error || "Failed to load dashboard data"}</p>
-        <Button onClick={fetchDashboardData} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Retry
-        </Button>
+      <div className="min-h-[400px] flex items-center justify-center">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error || "Failed to load dashboard data."}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchDashboardData}
+              className="ml-2"
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       </div>
     )
   }
 
-  const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`
-  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString()
-
   return (
     <div className="space-y-6 lg:space-y-8">
+      {/* Admin Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2">
+            Admin Dashboard
+          </h1>
+          <p className="text-gray-400 text-sm sm:text-base">
+            Welcome back, {data.profile?.firstName}! Monitor and manage your e-commerce platform.
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            {data.profile?.isActive && (
+              <Badge className="bg-green-600">
+                <Shield className="h-3 w-3 mr-1" />
+                Active Admin
+              </Badge>
+            )}
+            {data.profile?.totalActions && (
+              <Badge variant="outline" className="text-blue-400 border-blue-400">
+                <Activity className="h-3 w-3 mr-1" />
+                {data.profile.totalActions} Total Actions
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         <Card className="bg-gray-800/90 backdrop-blur-sm border-gray-700 hover:bg-gray-800 transition-colors">

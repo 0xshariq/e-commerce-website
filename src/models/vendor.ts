@@ -19,7 +19,7 @@ export interface IAddress {
 // Business Information interface
 export interface IBusinessInfo {
   businessName: string
-  businessType: 'individual' | 'partnership' | 'private_limited' | 'public_limited' | 'llp'
+  businessType: 'individual' | 'partnership' | 'private_limited' | 'public_limited' | 'llp' | 'retail' | 'wholesale' | 'manufacturing' | 'services' | 'other'
   businessCategory: string
   gstNumber?: string
   panNumber: string
@@ -73,6 +73,11 @@ export interface IVendor extends Document {
   isBusinessVerified: boolean
   isGSTVerified: boolean
   accountStatus: 'active' | 'suspended' | 'under_review' | 'rejected'
+  
+  // Security fields for login attempts
+  loginAttempts: number
+  lockUntil?: Date
+  isSuspended: boolean
   
   // Products & Inventory
   products: string[] // Product IDs
@@ -200,7 +205,7 @@ const BusinessInfoSchema = new Schema<IBusinessInfo>({
   },
   businessType: {
     type: String,
-    enum: ['individual', 'partnership', 'private_limited', 'public_limited', 'llp'],
+    enum: ['individual', 'partnership', 'private_limited', 'public_limited', 'llp', 'retail', 'wholesale', 'manufacturing', 'services', 'other'],
     required: [true, "Business type is required"]
   },
   businessCategory: {
@@ -257,11 +262,12 @@ const DocumentSchema = new Schema({
   type: {
     type: String,
     enum: ['pan', 'gst', 'business_license', 'id_proof', 'address_proof'],
-    required: true
+    required: [true, "Document type is required"]
   },
   documentUrl: {
     type: String,
-    required: true
+    required: [true, "Document URL is required"],
+    trim: true
   },
   status: {
     type: String,
@@ -278,24 +284,7 @@ const DocumentSchema = new Schema({
   }
 }, { _id: true })
 
-// Settings Schema
-const SettingsSchema = new Schema({
-  autoAcceptOrders: { type: Boolean, default: true },
-  maxOrdersPerDay: { type: Number, default: 100, min: 1 },
-  workingHours: {
-    start: { type: String, default: '09:00' },
-    end: { type: String, default: '18:00' },
-    workingDays: [{ type: String, enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] }]
-  },
-  notifications: {
-    orderAlerts: { type: Boolean, default: true },
-    paymentAlerts: { type: Boolean, default: true },
-    inventoryAlerts: { type: Boolean, default: true },
-    promotionalEmails: { type: Boolean, default: false }
-  }
-}, { _id: false })
-
-// Mongoose Schema
+// Main Vendor Schema
 const VendorSchema = new Schema<IVendor>(
   {
     // Basic Information
@@ -304,21 +293,22 @@ const VendorSchema = new Schema<IVendor>(
       required: [true, "First name is required"],
       trim: true,
       minlength: [2, "First name must be at least 2 characters"],
-      maxlength: [30, "First name cannot exceed 30 characters"],
+      maxlength: [50, "First name cannot exceed 50 characters"],
     },
     lastName: {
       type: String,
       required: [true, "Last name is required"],
       trim: true,
-      minlength: [1, "Last name must be at least 1 character"],
-      maxlength: [30, "Last name cannot exceed 30 characters"],
+      minlength: [2, "Last name must be at least 2 characters"],
+      maxlength: [50, "Last name cannot exceed 50 characters"],
     },
     email: {
       type: String,
       required: [true, "Email is required"],
       unique: true,
       lowercase: true,
-      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, "Please enter a valid email"],
+      trim: true,
+      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, "Please enter a valid email address"],
     },
     password: {
       type: String,
@@ -328,34 +318,30 @@ const VendorSchema = new Schema<IVendor>(
     mobileNo: {
       type: String,
       required: [true, "Mobile number is required"],
-      unique: true,
-      match: [/^\+?[1-9]\d{1,14}$/, "Please enter a valid mobile number"],
+      match: [/^\+?[\d\s\-()]{10,15}$/, "Please enter a valid mobile number"],
     },
     alternatePhone: {
       type: String,
-      match: [/^\+?[1-9]\d{1,14}$/, "Please enter a valid alternate phone number"],
+      match: [/^\+?[\d\s\-()]{10,15}$/, "Please enter a valid phone number"],
     },
     profileImage: {
       type: String,
-      default: ''
+      trim: true,
     },
-
+    
     // Business Information
-    businessInfo: {
-      type: BusinessInfoSchema,
-      required: true
-    },
-
-    // Addresses (embedded documents)
+    businessInfo: BusinessInfoSchema,
+    
+    // Addresses
     addresses: [AddressSchema],
-
-    // Financial Information - Simplified for Razorpay
+    
+    // Financial Information
     upiId: {
       type: String,
-      required: [true, "UPI ID is required for payments"],
+      required: [true, "UPI ID is required"],
       match: [/^[\w.-]+@[\w.-]+$/, "Please enter a valid UPI ID"],
     },
-
+    
     // Account Status & Verification
     isApproved: {
       type: Boolean,
@@ -363,145 +349,140 @@ const VendorSchema = new Schema<IVendor>(
     },
     isEmailVerified: {
       type: Boolean,
-      default: false
+      default: false,
     },
     isMobileVerified: {
       type: Boolean,
-      default: false
+      default: false,
     },
-    emailVerificationToken: {
-      type: String,
-      default: null
-    },
-    emailVerificationCode: {
-      type: String,
-      default: null
-    },
-    emailVerificationExpiry: {
-      type: Date,
-      default: null
-    },
-    mobileVerificationCode: {
-      type: String,
-      default: null
-    },
-    mobileVerificationExpiry: {
-      type: Date,
-      default: null
-    },
+    emailVerificationToken: String,
+    emailVerificationCode: String,
+    emailVerificationExpiry: Date,
+    mobileVerificationCode: String,
+    mobileVerificationExpiry: Date,
     isBusinessVerified: {
       type: Boolean,
-      default: false
+      default: false,
     },
     isGSTVerified: {
       type: Boolean,
-      default: false
+      default: false,
     },
     accountStatus: {
       type: String,
       enum: ['active', 'suspended', 'under_review', 'rejected'],
-      default: 'under_review'
+      default: 'under_review',
     },
-
+    
+    // Security fields for login attempts
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: Date,
+    isSuspended: {
+      type: Boolean,
+      default: false,
+    },
+    
     // Products & Inventory
     products: [{
-      type: String,
-      ref: 'Product'
+      type: Schema.Types.ObjectId,
+      ref: "Product"
     }],
     categories: [{
-      type: String,
-      ref: 'Category'
+      type: Schema.Types.ObjectId,
+      ref: "Category"
     }],
     totalProducts: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
     activeProducts: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
-
+    
     // Orders & Sales
     orders: [{
-      type: String,
-      ref: 'Order'
+      type: Schema.Types.ObjectId,
+      ref: "Order"
     }],
-
+    
     // Performance & Analytics
-    performanceMetrics: {
-      type: PerformanceMetricsSchema,
-      default: () => ({})
-    },
-
+    performanceMetrics: PerformanceMetricsSchema,
+    
     // Settings & Preferences
-    settings: SettingsSchema,
-
+    settings: {
+      autoAcceptOrders: {
+        type: Boolean,
+        default: false,
+      },
+      maxOrdersPerDay: {
+        type: Number,
+        default: 50,
+        min: 0,
+      },
+      workingHours: {
+        start: {
+          type: String,
+          default: "09:00",
+        },
+        end: {
+          type: String,
+          default: "18:00",
+        },
+        workingDays: {
+          type: [String],
+          default: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        },
+      },
+      notifications: {
+        orderAlerts: {
+          type: Boolean,
+          default: true,
+        },
+        paymentAlerts: {
+          type: Boolean,
+          default: true,
+        },
+        inventoryAlerts: {
+          type: Boolean,
+          default: true,
+        },
+        promotionalEmails: {
+          type: Boolean,
+          default: true,
+        },
+      },
+    },
+    
     // KYC & Documents
     documents: [DocumentSchema],
-
+    
     // Timestamps
-    lastLogin: {
-      type: Date
-    }
+    lastLogin: Date,
   },
   {
     timestamps: true,
-  },
+  }
 )
 
-// Zod Schemas
-export const AddressZodSchema = z.object({
-  type: z.enum(['registered', 'pickup', 'warehouse', 'other']).default('registered'),
-  fullName: z.string().min(2, "Full name must be at least 2 characters").max(60, "Full name cannot exceed 60 characters").trim(),
-  phoneNumber: z.string().regex(/^\+?[\d\s\-()]{10,15}$/, "Please enter a valid phone number"),
-  addressLine1: z.string().min(5, "Address line 1 must be at least 5 characters").max(100, "Address line 1 cannot exceed 100 characters").trim(),
-  addressLine2: z.string().max(100, "Address line 2 cannot exceed 100 characters").trim().optional(),
-  landmark: z.string().max(50, "Landmark cannot exceed 50 characters").trim().optional(),
-  city: z.string().min(2, "City must be at least 2 characters").max(50, "City cannot exceed 50 characters").trim(),
-  state: z.string().min(2, "State must be at least 2 characters").max(50, "State cannot exceed 50 characters").trim(),
-  postalCode: z.string().regex(/^\d{6}$/, "Please enter a valid 6-digit postal code").trim(),
-  country: z.string().min(2, "Country must be at least 2 characters").max(50, "Country cannot exceed 50 characters").trim().default('India'),
-  isDefault: z.boolean().default(false)
+// Indexes for better performance
+VendorSchema.index({ email: 1 }, { unique: true })
+VendorSchema.index({ "businessInfo.businessName": 1 })
+VendorSchema.index({ accountStatus: 1 })
+VendorSchema.index({ isApproved: 1 })
+VendorSchema.index({ createdAt: -1 })
+
+// Virtual property for fullName
+VendorSchema.virtual('name').get(function() {
+  return `${this.firstName} ${this.lastName}`;
 })
 
-export const BusinessInfoZodSchema = z.object({
-  businessName: z.string().min(2, "Business name must be at least 2 characters").max(100, "Business name cannot exceed 100 characters").trim(),
-  businessType: z.enum(['individual', 'partnership', 'private_limited', 'public_limited', 'llp']),
-  businessCategory: z.string().min(2, "Business category is required").trim(),
-  gstNumber: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, "Please enter a valid GST number").optional(),
-  panNumber: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Please enter a valid PAN number"),
-  businessRegistrationNumber: z.string().optional(),
-  businessEmail: z.string().email("Invalid business email").optional(),
-  businessPhone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid business phone number").optional(),
-  yearEstablished: z.number().min(1800).max(new Date().getFullYear()).optional()
-})
-
-export const VendorZodSchema = z.object({
-  firstName: z.string().min(2, "First name must be at least 2 characters").max(30, "First name cannot exceed 30 characters").trim(),
-  lastName: z.string().min(1, "Last name must be at least 1 character").max(30, "Last name cannot exceed 30 characters").trim(),
-  email: z.string().email("Invalid email address").regex(
-    /[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/g,
-    "Please enter a valid email",
-  ).toLowerCase(),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(
-      /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$/gm,
-      "Password must contain at least one uppercase letter, one lowercase letter, and one number",
-    ),
-  mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number"),
-  alternatePhone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid alternate phone number").optional(),
-  businessInfo: BusinessInfoZodSchema,
-  addresses: z.array(AddressZodSchema).default([]), // Array of embedded Address objects
-  upiId: z.string().regex(/^[\w.-]+@[\w.-]+$/, "Please enter a valid UPI ID")
-})
-
-export const VendorUpdateZodSchema = VendorZodSchema.partial()
-
-// Export Model with type
+// Export the model
 export const Vendor = mongoose.models?.Vendor
   ? (mongoose.models.Vendor as mongoose.Model<IVendor>)
-  : mongoose.model<IVendor>("Vendor", VendorSchema);
+  : mongoose.model<IVendor>("Vendor", VendorSchema)

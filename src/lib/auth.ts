@@ -1,7 +1,7 @@
-import type { NextAuthOptions } from "next-auth"
+// This is sufficient for our purposes
+import "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
-import GitHubProvider from "next-auth/providers/github"
 import bcrypt from "bcryptjs"
 import dbConnect from "@/lib/database"
 import { Customer } from "@/models/customer"
@@ -11,14 +11,14 @@ import { Admin } from "@/models/admin"
 const MAX_LOGIN_ATTEMPTS = 5
 const LOCK_TIME = 2 * 60 * 60 * 1000 // 2 hours
 
-export const authOptions: NextAuthOptions = {
+export const authOptions = {
   providers: [
     CredentialsProvider({
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
-        role: { label: "Role", type: "text", optional: true },
+        role: { label: "Role", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -92,19 +92,48 @@ export const authOptions: NextAuthOptions = {
         user.lastLogin = new Date()
         await user.save()
 
+        // Prepare a safe way to handle the user data with type safety
+        let firstName = "";
+        let lastName = "";
+        let email = "";
+        let profileImage = null;
+        let mobileNo = "";
+        let upiId = "";
+        let isSuspended = false;
+        let isApproved = true;
+        
+        // Extract common properties safely regardless of user model
+        if (typeof user.email === 'string') email = user.email;
+        if (typeof user.firstName === 'string') firstName = user.firstName;
+        if (typeof user.lastName === 'string') lastName = user.lastName;
+        if (typeof user.profileImage === 'string') profileImage = user.profileImage;
+        if (typeof user.mobileNo === 'string') mobileNo = user.mobileNo;
+        if (typeof user.isSuspended === 'boolean') isSuspended = user.isSuspended;
+        
+        // Handle role-specific properties
+        if (userRole === "vendor") {
+          if (typeof (user as any).upiId === 'string') upiId = (user as any).upiId;
+          if (typeof (user as any).isApproved === 'boolean') isApproved = (user as any).isApproved;
+        }
+        
+        // Construct name from available properties
+        const name = firstName && lastName ? 
+          `${firstName} ${lastName}` : 
+          (email ? email.split("@")[0] : "User");
+        
+        // Create and return the user data object
         return {
-          id: user._id.toString(),
-          name: user.name,
-          email: user.email,
+          id: user._id?.toString() || "",
+          name,
+          email,
           role: userRole,
           isAdmin: userRole === "admin",
-          image: user.profileImage || null,
-          mobileNo: user.mobileNo || "",
-          shopAddress: userRole === "vendor" ? user.shopAddress : "",
-          upiId: userRole === "vendor" ? user.upiId : "",
-          isSuspended: user.isSuspended || false,
-          isApproved: userRole === "vendor" ? user.isApproved : true,
-        }
+          image: profileImage,
+          mobileNo,
+          upiId,
+          isSuspended,
+          isApproved
+        };
       },
     }),
     GoogleProvider({
@@ -136,50 +165,13 @@ export const authOptions: NextAuthOptions = {
         }
 
         return {
-          id: existingUser._id.toString(),
-          name: profile.name,
-          email: profile.email,
-          image: profile.picture,
+          id: existingUser._id?.toString() || "",
+          name: profile.name || "",
+          email: profile.email || "",
+          image: profile.picture || "",
           role: "customer",
           isAdmin: false,
           mobileNo: existingUser.mobileNo || "",
-          shopAddress: "",
-          upiId: "",
-          isSuspended: existingUser.isSuspended || false,
-          isApproved: true,
-        }
-      },
-    }),
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID || "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
-      async profile(profile) {
-        await dbConnect()
-
-        // Check if user already exists
-        let existingUser = await Customer.findOne({ email: profile.email })
-
-        if (!existingUser) {
-          // Create new customer account for GitHub users
-          existingUser = await Customer.create({
-            name: profile.name || profile.login,
-            email: profile.email,
-            password: await bcrypt.hash(Math.random().toString(36), 12), // Random password
-            mobileNo: "", // Will be updated later
-            productsPurchased: [],
-            profileImage: profile.avatar_url,
-          })
-        }
-
-        return {
-          id: existingUser._id.toString(),
-          name: profile.name || profile.login,
-          email: profile.email,
-          image: profile.avatar_url,
-          role: "customer",
-          isAdmin: false,
-          mobileNo: existingUser.mobileNo || "",
-          shopAddress: "",
           upiId: "",
           isSuspended: existingUser.isSuspended || false,
           isApproved: true,

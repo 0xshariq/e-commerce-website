@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
 import Link from "next/link"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,6 +14,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { INDIAN_STATES } from "@/models/address"
 import { 
   Eye, 
@@ -28,7 +31,11 @@ import {
   Phone,
   Building,
   MapPin,
-  CheckCircle
+  CheckCircle,
+  Calendar as CalendarIcon,
+  Key,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react"
 
 export default function SignUpPage() {
@@ -39,11 +46,16 @@ export default function SignUpPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    phone: "",
+    mobileNo: "",
     role: "customer",
     
-    // Address fields (customer and optional for others)
-    fullName: "",
+    // Verification preference
+    verificationPreference: "email", // "email" or "mobile"
+    
+    // Admin specific field
+    adminKey: "",
+    
+    // Address fields (customer and vendor)
     addressLine1: "",
     addressLine2: "",
     landmark: "",
@@ -53,7 +65,7 @@ export default function SignUpPage() {
     country: "India",
     
     // Customer specific fields
-    dateOfBirth: "",
+    dateOfBirth: undefined as Date | undefined,
     gender: "",
     
     // Vendor specific fields - Required
@@ -61,16 +73,15 @@ export default function SignUpPage() {
     businessType: "",
     businessCategory: "",
     panNumber: "",
-    businessAddress: "",
-    businessCity: "",
-    businessState: "",
-    businessPostalCode: "",
     upiId: "", // Required for payments
     
     // Vendor specific fields - Optional
     gstNumber: "",
     businessEmail: "",
-    businessPhone: ""
+    businessPhone: "",
+    businessRegistrationNumber: "",
+    yearEstablished: "",
+    alternatePhone: ""
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -141,13 +152,13 @@ export default function SignUpPage() {
       return false
     }
 
-    if (!formData.phone.trim()) {
-      setError("Phone number is required")
+    if (!formData.mobileNo.trim()) {
+      setError("Mobile number is required")
       return false
     }
 
-    if (!/^\+?[\d\s\-()]{10,15}$/.test(formData.phone.replace(/\s/g, ""))) {
-      setError("Please enter a valid phone number")
+    if (!/^\+?[1-9]\d{9,14}$/.test(formData.mobileNo.replace(/\s/g, ""))) {
+      setError("Please enter a valid mobile number")
       return false
     }
 
@@ -167,21 +178,25 @@ export default function SignUpPage() {
     }
 
     // Role-specific validation
+    if (formData.role === "admin") {
+      if (!formData.adminKey.trim()) {
+        setError("Admin registration key is required for admin accounts")
+        return false
+      }
+    }
+
     if (formData.role === "vendor") {
       const requiredVendorFields = {
         businessName: "Business name",
         businessType: "Business type", 
         businessCategory: "Business category",
         panNumber: "PAN number",
-        businessAddress: "Business address",
-        businessCity: "Business city",
-        businessState: "Business state",
-        businessPostalCode: "Business postal code",
         upiId: "UPI ID"
       }
 
       for (const [field, label] of Object.entries(requiredVendorFields)) {
-        if (!formData[field as keyof typeof formData]?.trim()) {
+        const value = formData[field as keyof typeof formData]
+        if (!value || (typeof value === 'string' && !value.trim())) {
           setError(`${label} is required for vendor accounts`)
           return false
         }
@@ -204,20 +219,12 @@ export default function SignUpPage() {
         setError("Please enter a valid UPI ID (e.g., yourname@upi)")
         return false
       }
-
-      // Validate business postal code
-      if (!/^\d{6}$/.test(formData.businessPostalCode)) {
-        setError("Please enter a valid 6-digit business postal code")
-        return false
-      }
     }
 
-    // Validate customer address if provided
-    if (formData.role === "customer" && formData.addressLine1) {
-      if (formData.postalCode && !/^\d{6}$/.test(formData.postalCode)) {
-        setError("Please enter a valid 6-digit postal code")
-        return false
-      }
+    // Validate address postal code if provided
+    if (formData.postalCode && !/^\d{6}$/.test(formData.postalCode)) {
+      setError("Please enter a valid 6-digit postal code")
+      return false
     }
 
     return true
@@ -234,12 +241,56 @@ export default function SignUpPage() {
     }
 
     try {
+      // Prepare the data for the API
+      const registrationData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password,
+        mobileNo: formData.mobileNo,
+        role: formData.role,
+        verificationPreference: formData.verificationPreference,
+        // Admin specific field
+        ...(formData.role === "admin" && {
+          adminKey: formData.adminKey,
+        }),
+        // Customer specific fields
+        ...(formData.role === "customer" && {
+          dateOfBirth: formData.dateOfBirth?.toISOString() || undefined,
+          gender: formData.gender || undefined,
+        }),
+        // Vendor specific fields
+        ...(formData.role === "vendor" && {
+          businessName: formData.businessName,
+          businessType: formData.businessType,
+          businessCategory: formData.businessCategory,
+          panNumber: formData.panNumber,
+          upiId: formData.upiId,
+          gstNumber: formData.gstNumber || undefined,
+          businessEmail: formData.businessEmail || undefined,
+          businessPhone: formData.businessPhone || undefined,
+          businessRegistrationNumber: formData.businessRegistrationNumber || undefined,
+          yearEstablished: formData.yearEstablished ? parseInt(formData.yearEstablished) : undefined,
+          alternatePhone: formData.alternatePhone || undefined,
+        }),
+        // Address fields (for both customer and vendor)
+        ...(formData.addressLine1 && {
+          addressLine1: formData.addressLine1,
+          addressLine2: formData.addressLine2 || undefined,
+          landmark: formData.landmark || undefined,
+          city: formData.city,
+          state: formData.state,
+          postalCode: formData.postalCode,
+          country: formData.country,
+        }),
+      }
+
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(registrationData),
       })
 
       const data = await response.json()
@@ -248,23 +299,14 @@ export default function SignUpPage() {
         setRegistrationData(data)
         setSuccess(true)
         
-        // Check if verification info is included and email was sent
-        if (data.verification && data.verification.emailSent && data.verification.emailEnabled) {
-          // Show verification message and redirect to verify-email page
-          setTimeout(() => {
+        // Redirect to verification page after 3 seconds
+        setTimeout(() => {
+          if (formData.verificationPreference === 'mobile') {
+            router.push(`/auth/verify-mobile?email=${encodeURIComponent(formData.email)}&mobile=${encodeURIComponent(formData.mobileNo)}`)
+          } else {
             router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`)
-          }, 3000)
-        } else if (data.verification && data.verification.emailRequired) {
-          // If email verification is required but email wasn't sent, stay on the page with error
-          setError("Email verification is required but couldn't be sent. Please try again.")
-          setSuccess(false)
-          return
-        } else {
-          // Regular redirect to sign in if email verification is disabled or optional
-          setTimeout(() => {
-            router.push("/auth/signin")
-          }, 2000)
-        }
+          }
+        }, 3000)
       } else {
         setError(data.error || "Registration failed. Please try again.")
       }
@@ -295,6 +337,11 @@ export default function SignUpPage() {
 
   const handleRoleChange = (role: string) => {
     setFormData({ ...formData, role })
+    setError("")
+  }
+
+  const handleDateSelect = (date: Date | undefined) => {
+    setFormData({ ...formData, dateOfBirth: date })
     setError("")
   }
 
@@ -335,70 +382,55 @@ export default function SignUpPage() {
   const RoleIcon = roleInfo.icon
 
   if (success) {
-    const verification = registrationData?.verification
-    const isEmailSent = verification?.emailSent
-    const isEmailEnabled = verification?.emailEnabled
-    const emailProvider = verification?.emailProvider
-    
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-lg border-0">
-          <CardContent className="text-center p-8">
-            <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Created!</h2>
-            <p className="text-gray-600 mb-4">
-              Your {formData.role} account has been created successfully.
-            </p>
+          <CardContent className="text-center space-y-6 pt-8">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
             
-            {isEmailEnabled && isEmailSent && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center mb-2">
-                  <Mail className="h-5 w-5 text-blue-600 mr-2" />
-                  <h3 className="font-semibold text-blue-800">Email Verification</h3>
-                </div>
-                <p className="text-sm text-blue-700">
-                  We&pos;ve sent a verification email to <strong>{formData.email}</strong>
-                  {emailProvider === 'sendgrid' ? ' via SendGrid' : ' (check console for development)'}.
-                  Please check your inbox and verify your email address.
-                </p>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful!</h2>
+              <p className="text-gray-600 mb-4">
+                Welcome to ShopHub, {registrationData?.user?.firstName}!
+              </p>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="font-medium text-gray-900 mb-2">Next Steps:</h3>
+                <ul className="text-sm text-gray-600 space-y-1 text-left">
+                  <li>• Check your email for verification code</li>
+                  <li>• Check your mobile for SMS verification code</li>
+                  {registrationData?.user?.role === 'vendor' && (
+                    <li>• Your account is under review and will be activated soon</li>
+                  )}
+                  {registrationData?.user?.role === 'customer' && (
+                    <li>• Start shopping after verification</li>
+                  )}
+                  {registrationData?.user?.role === 'admin' && (
+                    <li>• You have full admin access after verification</li>
+                  )}
+                </ul>
               </div>
-            )}
+            </div>
             
-            {isEmailEnabled && !isEmailSent && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center mb-2">
-                  <Mail className="h-5 w-5 text-yellow-600 mr-2" />
-                  <h3 className="font-semibold text-yellow-800">Email Verification</h3>
-                </div>
-                <p className="text-sm text-yellow-700">
-                  Email verification is enabled but we couldn&apos;t send the verification email. 
-                  You can request a new verification email after signing in.
-                </p>
-              </div>
-            )}
-            
-            {!isEmailEnabled && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center mb-2">
-                  <Mail className="h-5 w-5 text-gray-600 mr-2" />
-                  <h3 className="font-semibold text-gray-800">Email Verification</h3>
-                </div>
-                <p className="text-sm text-gray-700">
-                  Email verification is currently disabled. You can start using your account immediately.
-                </p>
-              </div>
-            )}
-            
-            <p className="text-sm text-gray-500">
-              {isEmailSent && verification?.emailRequired 
-                ? "Email verification is required. Redirecting to verification page..." 
-                : isEmailSent
-                  ? "Email verification is optional but recommended. Redirecting to verification page..."
-                  : "Redirecting to sign in page..."}
-            </p>
-            <p className="text-xs text-gray-400 mt-2">
-              Redirecting in a few seconds...
-            </p>
+            <div className="text-center">
+              <p className="text-sm text-gray-500 mb-4">
+                Redirecting to verification page in a few seconds...
+              </p>
+              <Button 
+                onClick={() => {
+                  if (formData.verificationPreference === 'mobile') {
+                    router.push(`/auth/verify-mobile?email=${encodeURIComponent(formData.email)}&mobile=${encodeURIComponent(formData.mobileNo)}`)
+                  } else {
+                    router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`)
+                  }
+                }}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                Verify Now
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -528,23 +560,73 @@ export default function SignUpPage() {
                   </div>
                 </div>
 
-                {/* Phone */}
+                {/* Mobile Number */}
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="mobileNo">Mobile Number</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
-                      id="phone"
-                      name="phone"
+                      id="mobileNo"
+                      name="mobileNo"
                       type="tel"
-                      placeholder="Enter your phone number"
-                      value={formData.phone}
+                      placeholder="Enter your mobile number"
+                      value={formData.mobileNo}
                       onChange={handleInputChange}
                       className="pl-10"
                       required
                     />
                   </div>
                 </div>
+
+                {/* Verification Preference */}
+                <div className="space-y-2">
+                  <Label htmlFor="verificationPreference">Verification Method</Label>
+                  <Select value={formData.verificationPreference} onValueChange={(value) => setFormData({ ...formData, verificationPreference: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose verification method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="email">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-blue-600" />
+                          <span>Email Verification</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="mobile">
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-green-600" />
+                          <span>Mobile Verification</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    Choose how you'd like to verify your account
+                  </p>
+                </div>
+
+                {/* Admin Registration Key (only for admin role) */}
+                {formData.role === "admin" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="adminKey">Admin Registration Key</Label>
+                    <div className="relative">
+                      <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="adminKey"
+                        name="adminKey"
+                        type="password"
+                        placeholder="Enter admin registration key"
+                        value={formData.adminKey}
+                        onChange={handleInputChange}
+                        className="pl-10"
+                        required
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      This key is required for admin account registration
+                    </p>
+                  </div>
+                )}
 
                 {/* Password */}
                 <div className="space-y-2">
@@ -616,23 +698,95 @@ export default function SignUpPage() {
                 </div>
               </div>
 
-              {/* Customer Address Fields */}
+              {/* Customer Specific Fields */}
               {formData.role === "customer" && (
                 <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-gray-900">Address Information (Optional)</h3>
-                  <p className="text-xs text-gray-500">You can add this later in your profile, or add it now for faster checkout</p>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name (for delivery)</Label>
-                    <Input
-                      id="fullName"
-                      name="fullName"
-                      type="text"
-                      placeholder="Full name for delivery"
-                      value={formData.fullName}
-                      onChange={handleInputChange}
-                    />
+                  <h3 className="text-sm font-medium text-gray-900">Personal Information</h3>
+                  <p className="text-xs text-gray-500">
+                    This information helps us personalize your shopping experience
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dateOfBirth">Date of Birth (Optional)</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={`w-full justify-start text-left font-normal ${!formData.dateOfBirth && "text-muted-foreground"}`}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formData.dateOfBirth ? format(formData.dateOfBirth, "MMM d, yyyy") : "Select date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={formData.dateOfBirth}
+                            onSelect={handleDateSelect}
+                            disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                            initialFocus
+                            showOutsideDays={false}
+                            className="rounded-md border"
+                            classNames={{
+                              months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+                              month: "space-y-4",
+                              caption: "flex justify-center pt-1 relative items-center",
+                              caption_label: "text-sm font-medium",
+                              nav: "space-x-1 flex items-center",
+                              nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+                              nav_button_previous: "absolute left-1",
+                              nav_button_next: "absolute right-1",
+                              table: "w-full border-collapse space-y-1",
+                              head_row: "flex",
+                              head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+                              row: "flex w-full mt-2",
+                              cell: "text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                              day: "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
+                              day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                              day_today: "bg-accent text-accent-foreground",
+                              day_outside: "text-muted-foreground opacity-50",
+                              day_disabled: "text-muted-foreground opacity-50",
+                              day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+                              day_hidden: "invisible",
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="gender">Gender (Optional)</Label>
+                      <Select 
+                        value={formData.gender} 
+                        onValueChange={(value) => setFormData({...formData, gender: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+                </div>
+              )}
+
+              {/* Address Fields (for both Customer and Vendor) */}
+              {(formData.role === "customer" || formData.role === "vendor") && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-900">
+                    {formData.role === "customer" ? "Address Information (Optional)" : "Business Address (Optional)"}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {formData.role === "customer" 
+                      ? "You can add this later in your profile, or add it now for faster checkout"
+                      : "Add your business address for registration and shipping purposes"
+                    }
+                  </p>
 
                   <div className="space-y-2">
                     <Label htmlFor="addressLine1">Address Line 1</Label>
@@ -729,37 +883,6 @@ export default function SignUpPage() {
                       />
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="dateOfBirth">Date of Birth (Optional)</Label>
-                      <Input
-                        id="dateOfBirth"
-                        name="dateOfBirth"
-                        type="date"
-                        value={formData.dateOfBirth}
-                        onChange={handleInputChange}
-                        max={new Date().toISOString().split('T')[0]}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="gender">Gender (Optional)</Label>
-                      <Select 
-                        value={formData.gender} 
-                        onValueChange={(value) => setFormData({...formData, gender: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                          <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -798,11 +921,15 @@ export default function SignUpPage() {
                             <SelectValue placeholder="Select business type" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="individual">Individual</SelectItem>
+                            <SelectItem value="partnership">Partnership</SelectItem>
+                            <SelectItem value="private_limited">Private Limited</SelectItem>
+                            <SelectItem value="public_limited">Public Limited</SelectItem>
+                            <SelectItem value="llp">LLP</SelectItem>
                             <SelectItem value="retail">Retail</SelectItem>
                             <SelectItem value="wholesale">Wholesale</SelectItem>
-                            <SelectItem value="manufacturer">Manufacturer</SelectItem>
-                            <SelectItem value="distributor">Distributor</SelectItem>
-                            <SelectItem value="service">Service Provider</SelectItem>
+                            <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                            <SelectItem value="services">Services</SelectItem>
                             <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
@@ -849,70 +976,7 @@ export default function SignUpPage() {
                       <p className="text-xs text-gray-500">Required for tax compliance</p>
                     </div>
 
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-medium text-gray-900">Business Address *</h4>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="businessAddress">Address Line 1 *</Label>
-                        <Input
-                          id="businessAddress"
-                          name="businessAddress"
-                          type="text"
-                          placeholder="Shop/Office number, Building name"
-                          value={formData.businessAddress}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="businessCity">City *</Label>
-                          <Input
-                            id="businessCity"
-                            name="businessCity"
-                            type="text"
-                            placeholder="Business city"
-                            value={formData.businessCity}
-                            onChange={handleInputChange}
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="businessState">State *</Label>
-                          <Select 
-                            value={formData.businessState} 
-                            onValueChange={(value) => setFormData({...formData, businessState: value})}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select state" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {INDIAN_STATES.map((state) => (
-                                <SelectItem key={state} value={state}>
-                                  {state}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="businessPostalCode">Postal Code *</Label>
-                        <Input
-                          id="businessPostalCode"
-                          name="businessPostalCode"
-                          type="text"
-                          placeholder="6-digit PIN code"
-                          value={formData.businessPostalCode}
-                          onChange={handleInputChange}
-                          maxLength={6}
-                          required
-                        />
-                      </div>
-                    </div>
+                    {/* Note: Address is handled in the shared address section above */}
                   </div>
 
                   {/* Payment Information */}

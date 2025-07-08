@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -24,6 +24,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Eye,
   EyeOff,
@@ -34,6 +35,10 @@ import {
   Shield,
   ArrowLeft,
   Loader2,
+  CheckCircle,
+  AlertCircle,
+  Globe,
+  Smartphone,
 } from "lucide-react";
 
 export default function SignInPage() {
@@ -45,11 +50,25 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [isRememberMe, setIsRememberMe] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const from = searchParams.get("from");
+
+  // Handle URL parameters for feedback
+  useEffect(() => {
+    const verified = searchParams.get("verified");
+    const message = searchParams.get("message");
+    
+    if (verified === "true") {
+      setSuccess("Email verified successfully! Please sign in to continue.");
+    } else if (message) {
+      setError(decodeURIComponent(message));
+    }
+  }, [searchParams]);
 
   // Form validation
   const validateForm = () => {
@@ -96,9 +115,17 @@ export default function SignInPage() {
           setError(
             "Invalid email or password. Please check your credentials and try again."
           );
+        } else if (result.error === "AccountNotVerified") {
+          setError(
+            "Your account is not verified. Please check your email for verification instructions."
+          );
+        } else if (result.error === "AccountSuspended") {
+          setError(
+            "Your account has been suspended. Please contact support for assistance."
+          );
         } else {
           setError(
-            "Invalid credentials. Please check your email, password, and role."
+            "Unable to sign in. Please check your credentials and try again."
           );
         }
       } else {
@@ -214,7 +241,17 @@ export default function SignInPage() {
           <CardContent className="space-y-6">
             {error && (
               <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="border-green-200 bg-green-50">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  {success}
+                </AlertDescription>
               </Alert>
             )}
 
@@ -307,21 +344,27 @@ export default function SignInPage() {
                 </div>
               </div>
 
-              {/* Remember Me Checkbox */}
-              <div className="flex items-center">
-                <input
-                  id="rememberMe"
-                  type="checkbox"
-                  checked={isRememberMe}
-                  onChange={() => setIsRememberMe(!isRememberMe)}
-                  className="h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
-                />
-                <Label
-                  htmlFor="rememberMe"
-                  className="ml-2 text-sm text-gray-600 cursor-pointer"
+              {/* Remember Me and Forgot Password */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="rememberMe"
+                    checked={isRememberMe}
+                    onCheckedChange={(checked) => setIsRememberMe(!!checked)}
+                  />
+                  <Label
+                    htmlFor="rememberMe"
+                    className="text-sm text-gray-600 cursor-pointer"
+                  >
+                    Remember me
+                  </Label>
+                </div>
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-orange-600 hover:text-orange-700 font-medium"
                 >
-                  Remember me
-                </Label>
+                  Forgot password?
+                </Link>
               </div>
 
               {/* Submit Button */}

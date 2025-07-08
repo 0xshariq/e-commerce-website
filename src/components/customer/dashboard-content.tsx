@@ -4,7 +4,9 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import CustomerRefundRequests from "./refund-requests"
+import { formatCurrency, formatDate, timeAgo } from "@/utils/formatting"
 import {
   ShoppingCart,
   Heart,
@@ -17,9 +19,22 @@ import {
   Search,
   RefreshCw,
   AlertCircle,
+  Loader2,
+  Gift,
+  CreditCard,
+  Truck,
 } from "lucide-react"
 
 interface DashboardData {
+  profile?: {
+    firstName: string
+    lastName: string
+    email: string
+    mobileNo: string
+    membershipTier: string
+    loyaltyPoints: number
+    addresses: Array<any>
+  }
   stats: {
     totalOrders: number
     wishlistCount: number
@@ -74,20 +89,24 @@ export default function CustomerDashboardContent({ customerName }: CustomerDashb
       setLoading(true)
       setError(null)
       
-      const [dashboardResponse, refundResponse] = await Promise.all([
+      // Use the unified profile API and dashboard API
+      const [profileResponse, dashboardResponse, refundResponse] = await Promise.all([
+        fetch("/api/profile"),
         fetch("/api/dashboard/customer"),
         fetch("/api/refund/request"),
       ])
 
-      if (!dashboardResponse.ok) {
+      if (!profileResponse.ok || !dashboardResponse.ok) {
         throw new Error("Failed to fetch dashboard data")
       }
 
+      const profileResult = await profileResponse.json()
       const dashboardResult = await dashboardResponse.json()
       const refundResult = refundResponse.ok ? await refundResponse.json() : { refundRequests: [] }
 
       setDashboardData({
         ...dashboardResult,
+        profile: profileResult.user,
         refundRequests: refundResult.refundRequests || [],
       })
     } catch (error) {
@@ -101,9 +120,9 @@ export default function CustomerDashboardContent({ customerName }: CustomerDashb
   if (loading) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p>Loading dashboard...</p>
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
     )
@@ -112,13 +131,21 @@ export default function CustomerDashboardContent({ customerName }: CustomerDashb
   if (error || !dashboardData) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-          <p className="text-white mb-4">{error || "Failed to load dashboard data"}</p>
-          <Button onClick={fetchDashboardData} className="bg-blue-600 hover:bg-blue-700">
-            Try Again
-          </Button>
-        </div>
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error || "Failed to load dashboard data."}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchDashboardData}
+              className="ml-2"
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       </div>
     )
   }
@@ -126,11 +153,29 @@ export default function CustomerDashboardContent({ customerName }: CustomerDashb
   return (
     <div className="space-y-6 lg:space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2">
-          Welcome back, {customerName}!
-        </h1>
-        <p className="text-gray-400 text-sm sm:text-base">Manage your orders, wishlist, and account settings</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2">
+            Welcome back, {dashboardData.profile?.firstName || customerName}!
+          </h1>
+          <p className="text-gray-400 text-sm sm:text-base">
+            Here's what's happening with your account today.
+          </p>
+          {dashboardData.profile?.membershipTier && (
+            <Badge className="mt-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-black">
+              <Gift className="h-3 w-3 mr-1" />
+              {dashboardData.profile.membershipTier.charAt(0).toUpperCase() + dashboardData.profile.membershipTier.slice(1)} Member
+            </Badge>
+          )}
+        </div>
+        {dashboardData.profile?.loyaltyPoints && (
+          <Card className="bg-gray-800/90 backdrop-blur-sm border-gray-700">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-yellow-400">{dashboardData.profile.loyaltyPoints}</div>
+              <p className="text-xs text-gray-400">Loyalty Points</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -164,7 +209,7 @@ export default function CustomerDashboardContent({ customerName }: CustomerDashb
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold text-white">
-              ₹{dashboardData.stats.totalSpent.toFixed(2)}
+              {formatCurrency(dashboardData.stats.totalSpent)}
             </div>
             <p className="text-xs text-gray-400">This year</p>
           </CardContent>

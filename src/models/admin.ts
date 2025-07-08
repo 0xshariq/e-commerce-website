@@ -37,7 +37,8 @@ export interface IAdmin extends Document {
   lastLogin?: Date
   lastPasswordChange: Date
   loginAttempts: number
-  lockedUntil?: Date
+  lockUntil?: Date
+  isSuspended?: boolean
   
   // Activity & Analytics
   activityLogs: IActivityLog[]
@@ -164,7 +165,7 @@ const AdminSchema = new Schema<IAdmin>(
       type: String,
       required: [true, "Mobile number is required"],
       unique: true,
-      match: [/^\+?[1-9]\d{1,14}$/, "Please enter a valid mobile number"],
+      match: [/^\+?[1-9]\d{9,14}$/, "Please enter a valid mobile number"],
     },
     profileImage: {
       type: String,
@@ -219,8 +220,12 @@ const AdminSchema = new Schema<IAdmin>(
       min: 0,
       max: 10
     },
-    lockedUntil: {
+    lockUntil: {
       type: Date
+    },
+    isSuspended: {
+      type: Boolean,
+      default: false
     },
 
     // Activity & Analytics
@@ -247,6 +252,16 @@ const AdminSchema = new Schema<IAdmin>(
   },
 )
 
+// Indexes for better performance
+AdminSchema.index({ email: 1 }, { unique: true })
+AdminSchema.index({ isActive: 1 })
+AdminSchema.index({ createdAt: -1 })
+
+// Virtual property for full name
+AdminSchema.virtual('name').get(function() {
+  return `${this.firstName} ${this.lastName}`;
+})
+
 // Zod Schemas - Simplified for Single Admin
 export const AdminZodSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters").max(30, "First name cannot exceed 30 characters").trim(),
@@ -262,7 +277,7 @@ export const AdminZodSchema = z.object({
       /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$/gm,
       "Password must contain at least one uppercase letter, one lowercase letter, and one number",
     ),
-  mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number")
+  mobileNo: z.string().regex(/^\+?[1-9]\d{9,14}$/, "Invalid mobile number")
 })
 
 export const AdminUpdateZodSchema = AdminZodSchema.partial()

@@ -68,6 +68,11 @@ export interface ICustomer extends Document {
   accountStatus: 'active' | 'suspended' | 'deleted'
   lastLogin?: Date
   
+  // Security fields for login attempts
+  loginAttempts?: number
+  lockUntil?: Date
+  isSuspended?: boolean
+  
   // Addresses (embedded documents)
   addresses: IAddress[]
   
@@ -293,7 +298,7 @@ const CustomerSchema = new Schema<ICustomer>(
       type: String,
       required: [true, "Mobile number is required"],
       unique: true,
-      match: [/^\+?[1-9]\d{1,14}$/, "Please enter a valid mobile number"],
+      match: [/^\+?[1-9]\d{9,14}$/, "Please enter a valid mobile number"],
     },
     dateOfBirth: {
       type: Date,
@@ -448,7 +453,7 @@ export const CustomerZodSchema = z.object({
       /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$/gm,
       "Password must contain at least one uppercase letter, one lowercase letter, and one number",
     ),
-  mobileNo: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid mobile number"),
+  mobileNo: z.string().regex(/^\+?[1-9]\d{9,14}$/, "Invalid mobile number"),
   dateOfBirth: z.date().max(new Date(), "Date of birth cannot be in the future").optional(),
   gender: z.enum(['male', 'female', 'other', 'prefer-not-to-say']).optional(),
   addresses: z.array(AddressZodSchema).default([]), // Array of embedded Address objects
