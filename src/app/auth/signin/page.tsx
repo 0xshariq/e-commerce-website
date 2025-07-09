@@ -106,9 +106,11 @@ export default function SignInPage() {
         email: formData.email,
         password: formData.password,
         role: formData.role,
+        rememberMe: isRememberMe.toString(),
         redirect: false,
       });
 
+      console.log(result);
       if (result?.error) {
         // More specific error messages
         if (result.error === "CredentialsSignin") {

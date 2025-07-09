@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
     }
 
     // If not admin, only show their own vendor data
-    if (session.user.role === "vendor") {
-      query._id = session.user.id
+    if (session?.user?.role === "vendor") {
+      query._id = session?.user?.id
     }
 
     const skip = (page - 1) * limit
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session || session.user.role !== "admin") {
+    if (!session || session?.user?.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -141,7 +141,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Check permissions
-    if (session.user.role === "vendor" && session.user.id !== vendorId) {
+    if (session?.user?.role === "vendor" && session?.user?.id !== vendorId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -149,7 +149,7 @@ export async function PATCH(request: NextRequest) {
 
     switch (action) {
       case "approve":
-        if (session.user.role !== "admin") {
+        if (session?.user?.role !== "admin") {
           return NextResponse.json({ error: "Admin access required" }, { status: 403 })
         }
         result = await Vendor.findByIdAndUpdate(
@@ -157,14 +157,14 @@ export async function PATCH(request: NextRequest) {
           { 
             status: "active",
             approvedAt: new Date(),
-            approvedBy: session.user.id
+            approvedBy: session?.user?.id
           },
           { new: true }
         )
         break
       
       case "reject":
-        if (session.user.role !== "admin") {
+        if (session?.user?.role !== "admin") {
           return NextResponse.json({ error: "Admin access required" }, { status: 403 })
         }
         result = await Vendor.findByIdAndUpdate(
@@ -172,7 +172,7 @@ export async function PATCH(request: NextRequest) {
           { 
             status: "rejected",
             rejectedAt: new Date(),
-            rejectedBy: session.user.id,
+            rejectedBy: session?.user?.id,
             rejectionReason: data?.reason || "Not specified"
           },
           { new: true }
@@ -180,7 +180,7 @@ export async function PATCH(request: NextRequest) {
         break
       
       case "suspend":
-        if (session.user.role !== "admin") {
+        if (session?.user?.role !== "admin") {
           return NextResponse.json({ error: "Admin access required" }, { status: 403 })
         }
         result = await Vendor.findByIdAndUpdate(
@@ -188,7 +188,7 @@ export async function PATCH(request: NextRequest) {
           { 
             status: "suspended",
             suspendedAt: new Date(),
-            suspendedBy: session.user.id,
+            suspendedBy: session?.user?.id,
             suspensionReason: data?.reason || "Not specified"
           },
           { new: true }
@@ -196,7 +196,7 @@ export async function PATCH(request: NextRequest) {
         break
       
       case "update":
-        const allowedFields = session.user.role === "admin" 
+        const allowedFields = session?.user?.role === "admin" 
           ? Object.keys(data) // Admin can update anything
           : ["businessName", "businessInfo", "contactInfo", "settings"] // Vendor can only update these
 
@@ -217,7 +217,7 @@ export async function PATCH(request: NextRequest) {
         break
       
       case "delete":
-        if (session.user.role !== "admin") {
+        if (session?.user?.role !== "admin") {
           return NextResponse.json({ error: "Admin access required" }, { status: 403 })
         }
         result = await Vendor.findByIdAndDelete(vendorId)

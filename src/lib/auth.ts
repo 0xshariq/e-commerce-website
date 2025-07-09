@@ -1,4 +1,3 @@
-// This is sufficient for our purposes
 import "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
@@ -19,12 +18,22 @@ export const authOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         role: { label: "Role", type: "text" },
+        rememberMe: { label: "Remember Me", type: "boolean" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Missing credentials")
         }
 
+        // Check for remember me option
+        const rememberMe = credentials.rememberMe === "true";
+        
+        // Set maxAge for token if remember me is checked
+        // This will be passed to the jwt callback via token.rememberMe
+        const tokenMaxAge = rememberMe 
+          ? 3 * 24 * 60 * 60 // 3 days for remember me
+          : 1 * 24 * 60 * 60;  // 1 day for normal session
+        
         await dbConnect()
 
         // Try to find user in all collections
@@ -132,7 +141,10 @@ export const authOptions = {
           mobileNo,
           upiId,
           isSuspended,
-          isApproved
+          isApproved,
+          // Include the remember me preference and token maxAge
+          rememberMe,
+          tokenMaxAge
         };
       },
     }),
@@ -190,6 +202,16 @@ export const authOptions = {
         token.image = user.image || null
         token.isSuspended = user.isSuspended
         token.isApproved = user.isApproved
+        
+        // Handle remember me option - set the token maxAge
+        if (user.rememberMe) {
+          token.rememberMe = true
+          // This is used in the session configuration
+          token.maxAge = user.tokenMaxAge || 3 * 24 * 60 * 60 // 3 days default
+        } else {
+          token.rememberMe = false
+          token.maxAge = user.tokenMaxAge || 1 * 24 * 60 * 60 // 1 day default
+        }
       }
 
       if (trigger === "update" && session) {
@@ -230,11 +252,13 @@ export const authOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    // Will be overridden in the authorize callback based on rememberMe
+    maxAge: 30 * 24 * 60 * 60, // 30 days default
     updateAge: 24 * 60 * 60, // 24 hours
   },
   jwt: {
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    // Will be overridden in the authorize callback based on rememberMe
+    maxAge: 30 * 24 * 60 * 60, // 30 days default
   },
   events: {
     async signIn({ user }: any) {

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { Loader2, Building, MapPin, CreditCard, Settings, User, TrendingUp } from "lucide-react"
-// import MobileVerification from "@/components/mobile-verification" // Uncomment when needed
+import MobileVerification from "@/components/mobile-verification" 
 
 interface VendorData {
   _id: string
@@ -108,10 +108,10 @@ export default function VendorSettingsPage() {
 
   const fetchVendorData = async () => {
     try {
-      const response = await fetch(`/api/vendors/${(session?.user as any)?.id}`)
+      const response = await fetch(`/api/vendor?id=${(session?.user as any)?.id}`)
       if (response.ok) {
         const data = await response.json()
-        setVendorData(data.vendor)
+        setVendorData(data.vendors[0])
       } else {
         toast.error("Failed to load vendor data")
       }
@@ -126,7 +126,7 @@ export default function VendorSettingsPage() {
   const updatePersonalInfo = async (updatedInfo: any) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendors/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personalInfo: updatedInfo }),
@@ -149,7 +149,7 @@ export default function VendorSettingsPage() {
   const updateBusinessInfo = async (updatedInfo: any) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendors/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ businessInfo: updatedInfo }),
@@ -172,7 +172,7 @@ export default function VendorSettingsPage() {
   const updateAddresses = async (updatedAddresses: any) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendors/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: updatedAddresses }),
@@ -195,7 +195,7 @@ export default function VendorSettingsPage() {
   const updatePaymentInfo = async (updatedPayment: any) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendors/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentInfo: updatedPayment }),
@@ -218,7 +218,7 @@ export default function VendorSettingsPage() {
   const updatePreferences = async (updatedPrefs: any) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendors/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preferences: updatedPrefs }),
@@ -373,9 +373,7 @@ export default function VendorSettingsPage() {
                   </div>
                 </div>
 
-                {/* Mobile Verification Section - Optional */}
-                {/* Uncomment when Twilio configuration is ready */}
-                {/*
+                
                 <div className="mt-6">
                   <Label className="text-base font-medium">Mobile Verification</Label>
                   <p className="text-sm text-gray-600 mb-3">
@@ -389,7 +387,7 @@ export default function VendorSettingsPage() {
                     }}
                   />
                 </div>
-                */}
+               
 
                 <div>
                   <Label htmlFor="dateOfBirth">Date of Birth</Label>

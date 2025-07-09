@@ -152,7 +152,7 @@ const AdminSchema = new Schema<IAdmin>(
     email: {
       type: String,
       required: [true, "Email is required"],
-      unique: true,
+      // Removed unique: true to avoid duplicate index with schema.index()
       lowercase: true,
       match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, "Please enter a valid email"],
     },

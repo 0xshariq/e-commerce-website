@@ -4,14 +4,15 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle } from "lucide-react"
-import AdminRefundRequests from "@/components/admin/dashboard/refund-requests"
-import StatsCards from "./dashboard/stats-cards"
-import QuickActions from "./dashboard/quick-actions"
-import SystemHealthCard from "./dashboard/system-health-card"
-import RecentActivitiesCard from "./dashboard/recent-activities-card"
-import PendingVendorsCard from "./dashboard/pending-vendors-card"
-import FlaggedProductsCard from "./dashboard/flagged-products-card"
-import RevenueOverviewCard from "./dashboard/revenue-overview-card"
+import AdminRefundRequests from "./refund-requests"
+import StatsCards from "./stats-cards"
+import QuickActions from "./quick-actions"
+import SystemHealthCard from "./system-health-card"
+import RecentActivitiesCard from "./recent-activities-card"
+import PendingVendorsCard from "./pending-vendors-card"
+import FlaggedProductsCard from "./flagged-products-card"
+import RevenueOverviewCard from "./revenue-overview-card"
+import axios from "axios"
 
 interface AdminDashboardData {
   stats: {
@@ -71,14 +72,8 @@ export default function AdminDashboardContent() {
       setLoading(true)
       setError(null)
       
-      const response = await fetch("/api/dashboard/admin")
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch admin dashboard data")
-      }
-
-      const data = await response.json()
-      setDashboardData(data)
+      const response = await axios.get("/api/dashboard/admin")
+      setDashboardData(response.data)
     } catch (error) {
       console.error("Failed to fetch admin dashboard data:", error)
       setError("Failed to load dashboard data. Please try again.")
@@ -89,14 +84,13 @@ export default function AdminDashboardContent() {
 
   const handleVendorAction = async (vendorId: string, action: "approve" | "reject") => {
     try {
-      const response = await fetch(`/api/admin/vendors/${vendorId}/${action}`, {
-        method: "PATCH",
+      const response = await axios.patch(`/api/admin/vendors/${vendorId}/${action}`, {}, {
         headers: {
           "Content-Type": "application/json",
-        },
+        }
       })
 
-      if (response.ok) {
+      if (response.status === 200) {
         fetchDashboardData() // Refresh data
       }
     } catch (error) {
@@ -106,14 +100,13 @@ export default function AdminDashboardContent() {
 
   const handleProductAction = async (productId: string, action: "approve" | "remove") => {
     try {
-      const response = await fetch(`/api/admin/products/${productId}/${action}`, {
-        method: "PATCH",
+      const response = await axios.patch(`/api/admin/products/${productId}/${action}`, {}, {
         headers: {
           "Content-Type": "application/json",
-        },
+        }
       })
 
-      if (response.ok) {
+      if (response.status === 200) {
         fetchDashboardData() // Refresh data
       }
     } catch (error) {

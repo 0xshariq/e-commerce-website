@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import CustomerRefundRequests from "./refund-requests"
+import CustomerRefundRequests from "./dashboard/refund-requests"
 import { formatCurrency, formatDate, timeAgo } from "@/utils/formatting"
 import {
   ShoppingCart,

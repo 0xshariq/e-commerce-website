@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ShoppingCart, Eye } from "lucide-react"
 import Link from "next/link"
+import axios from "axios"
 
 interface Order {
   _id: string
@@ -32,11 +33,8 @@ export default function RecentOrders() {
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch("/api/vendor/orders")
-      if (response.ok) {
-        const data = await response.json()
-        setOrders((data.orders || []).slice(0, 5))
-      }
+      const response = await axios.get("/api/vendor/orders")
+      setOrders((response.data.orders || []).slice(0, 5))
     } catch (error) {
       console.error("Error fetching orders:", error)
     } finally {

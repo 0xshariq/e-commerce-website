@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency, formatDate, timeAgo } from "@/utils/formatting"
+import axios from "axios"
 import { 
   DollarSign, 
   Package, 
@@ -58,36 +59,23 @@ export default function DashboardStats() {
 
   const fetchStats = async () => {
     try {
-      // Fetch data from existing APIs
+      // Fetch data from existing APIs using axios
       const [productsRes, ordersRes, couponsRes, salesRes] = await Promise.all([
-        fetch("/api/vendor/products"),
-        fetch("/api/vendor/orders"), 
-        fetch("/api/vendor/coupons"),
-        fetch("/api/vendor/sales")
+        axios.get("/api/vendor/products"),
+        axios.get("/api/vendor/orders"), 
+        axios.get("/api/vendor/coupons").catch(() => ({ data: { coupons: [] } })),
+        axios.get("/api/vendor/sales").catch(() => ({ data: { sales: [] } }))
       ])
 
-      if (productsRes.ok && ordersRes.ok) {
-        const [productsData, ordersData] = await Promise.all([
-          productsRes.json(),
-          ordersRes.json()
-        ])
-
-        // Get coupons and sales data if APIs exist
-        let couponsData = { coupons: [] }
-        let salesData = { sales: [] }
-        
-        if (couponsRes.ok) {
-          couponsData = await couponsRes.json()
-        }
-        
-        if (salesRes.ok) {
-          salesData = await salesRes.json()
-        }
-
-        const products = productsData.products || []
-        const orders = ordersData.orders || []
-        const coupons = couponsData.coupons || []
-        const sales = salesData.sales || []
+      const productsData = productsRes.data
+      const ordersData = ordersRes.data
+      const couponsData = couponsRes.data || { coupons: [] }
+      const salesData = salesRes.data || { sales: [] }
+      
+      const products = productsData.products || []
+      const orders = ordersData.orders || []
+      const coupons = couponsData.coupons || []
+      const sales = salesData.sales || []
 
         // Calculate stats
         const totalRevenue = orders.reduce((sum: number, order: any) => {

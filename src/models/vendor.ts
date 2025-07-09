@@ -305,7 +305,7 @@ const VendorSchema = new Schema<IVendor>(
     email: {
       type: String,
       required: [true, "Email is required"],
-      unique: true,
+      // Removed unique: true to avoid duplicate index with schema.index()
       lowercase: true,
       trim: true,
       match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, "Please enter a valid email address"],

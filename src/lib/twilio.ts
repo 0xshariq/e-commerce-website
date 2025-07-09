@@ -1,10 +1,4 @@
-import twilio from 'twilio'
-
-// Environment variables required for Twilio integration:
-// TWILIO_ACCOUNT_SID=your_account_sid_here
-// TWILIO_AUTH_TOKEN=your_auth_token_here
-// TWILIO_PHONE_NUMBER=+917208179779 (your Twilio phone number)
-// TWILIO_VERIFY_SERVICE_SID=your_verify_service_sid_here (optional, for Verify API)
+import twilio from 'twilio';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN

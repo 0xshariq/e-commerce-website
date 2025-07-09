@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Search, HelpCircle, Loader2, RefreshCw } from "lucide-react"
+import axios from "axios"
 
 interface FAQ {
   id: string
@@ -36,20 +37,26 @@ export default function FAQsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [hasLoaded, setHasLoaded] = useState(false)
+  const [useAI, setUseAI] = useState(false)
+  const [aiCooldown, setAiCooldown] = useState(false)
+  const [aiInsights, setAiInsights] = useState<any>(null)
+  const [openItems, setOpenItems] = useState<string[]>([])
 
-  const fetchFAQs = async (query = "", category = "all") => {
+  const fetchFAQs = async (query = "", category = "all", withAI = false) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (query) params.append("q", query)
       if (category !== "all") params.append("category", category)
+      if (withAI) params.append("ai", "true")
       
       const response = await fetch(`/api/faqs?${params.toString()}`)
-      const data: FAQResponse = await response.json()
+      const data = await response.json()
       
       if (data.success) {
-        setFaqs(data.faqs)
-        setCategories(data.categories)
+        setFaqs(data.faqs || [])
+        setCategories(data.categories || [])
+        setAiInsights(data.aiInsights || null)
         setHasLoaded(true)
       } else {
         console.error('Failed to fetch FAQs:', data)
@@ -299,19 +306,6 @@ export default function FAQsPage() {
     </div>
   )
 }
-      if (withAI) params.append("ai", "true")
-
-      const response = await fetch(`/api/faqs?${params}`)
-      const data = await response.json()
-
-      setFaqs(data.faqs || [])
-      setAiInsights(data.aiInsights || null)
-    } catch (error) {
-      console.error("Error fetching FAQs:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   useEffect(() => {
     fetchFAQs()

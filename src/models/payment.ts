@@ -110,12 +110,12 @@ const PaymentSchema = new Schema<IPayment>(
     razorpayOrderId: {
       type: String,
       required: [true, "Razorpay order ID is required"],
-      unique: true,
+      // Removed unique: true to avoid duplicate index with schema.index()
     },
     razorpayPaymentId: {
       type: String,
       sparse: true,
-      unique: true,
+      // Removed unique: true to avoid duplicate index with schema.index()
     },
     razorpaySignature: {
       type: String,

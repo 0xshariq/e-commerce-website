@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import CustomerDashboardContent from "@/components/customer/dashboard-content"
+import CustomerDashboardContent from "@/components/customer/dashboard/customer-dashboard-content"
 
 interface SessionUser {
   name?: string;
