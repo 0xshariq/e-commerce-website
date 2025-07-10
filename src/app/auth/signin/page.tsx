@@ -110,25 +110,27 @@ export default function SignInPage() {
         redirect: false,
       });
 
-      console.log(result);
+      console.log("Sign-in result:", result);
+      
       if (result?.error) {
-        // More specific error messages
-        if (result.error === "CredentialsSignin") {
-          setError(
-            "Invalid email or password. Please check your credentials and try again."
-          );
-        } else if (result.error === "AccountNotVerified") {
-          setError(
-            "Your account is not verified. Please check your email for verification instructions."
-          );
-        } else if (result.error === "AccountSuspended") {
-          setError(
-            "Your account has been suspended. Please contact support for assistance."
-          );
+        // Handle specific error messages
+        const errorMessage = result.error.toLowerCase();
+        
+        if (errorMessage.includes("no account found")) {
+          setError(`No ${formData.role} account found with this email address. Please check your email or select a different account type.`);
+        } else if (errorMessage.includes("invalid password") || errorMessage.includes("credentials")) {
+          setError("Invalid password. Please check your password and try again.");
+        } else if (errorMessage.includes("not verified")) {
+          setError("Your account is not verified. Please check your email for verification instructions.");
+        } else if (errorMessage.includes("suspended")) {
+          setError("Your account has been suspended. Please contact support for assistance.");
+        } else if (errorMessage.includes("pending admin approval")) {
+          setError("Your vendor account is pending admin approval. We'll notify you when it's approved.");
+        } else if (errorMessage.includes("locked")) {
+          setError("Your account is temporarily locked due to too many failed login attempts. Please try again later or reset your password.");
         } else {
-          setError(
-            "Unable to sign in. Please check your credentials and try again."
-          );
+          // Generic error message as fallback
+          setError("Unable to sign in. Please check your credentials and try again.");
         }
       } else {
         // Get the session to determine redirect URL based on role
@@ -238,6 +240,12 @@ export default function SignInPage() {
                 Sign in to your ShopHub account
               </CardDescription>
             </div>
+            <div className="flex items-center justify-center gap-2">
+              <Badge variant="outline" className={`${roleInfo.color}`}>
+                <RoleIcon className="h-3 w-3 mr-1" />
+                {formData.role.charAt(0).toUpperCase() + formData.role.slice(1)} Account
+              </Badge>
+            </div>
           </CardHeader>
 
           <CardContent className="space-y-6">
@@ -259,42 +267,54 @@ export default function SignInPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Role Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="role">Account Type</Label>
-                <Select value={formData.role} onValueChange={handleRoleChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your account type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="customer">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-blue-600" />
-                        <span>Customer</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="vendor">
-                      <div className="flex items-center gap-2">
-                        <Store className="h-4 w-4 text-green-600" />
-                        <span>Vendor/Seller</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="admin">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-purple-600" />
-                        <span>Administrator</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="role" className="font-medium">Account Type</Label>
+                  <Badge variant="outline" className="text-xs bg-gray-50">
+                    Sign in as
+                  </Badge>
+                </div>
+                
+                {/* Role Selector as Card-like buttons */}
+                <div className="grid grid-cols-3 gap-3">
+                  {["customer", "vendor", "admin"].map((role) => {
+                    const isSelected = formData.role === role;
+                    const roleData = getRoleInfo(role);
+                    const RoleIconComponent = roleData.icon;
+                    
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => handleRoleChange(role)}
+                        className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${
+                          isSelected
+                            ? `border-2 ${roleData.color.replace("text-", "border-")} bg-opacity-10`
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        <div className={`rounded-full p-2 ${
+                          isSelected 
+                            ? roleData.color 
+                            : "bg-gray-100"
+                        }`}>
+                          <RoleIconComponent className={`h-4 w-4 ${isSelected ? "" : "text-gray-500"}`} />
+                        </div>
+                        <span className={`mt-1 text-sm font-medium ${isSelected ? roleData.color.replace("bg-", "text-").replace("-50", "-700") : "text-gray-600"}`}>
+                          {role.charAt(0).toUpperCase() + role.slice(1)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
                 {/* Role Description */}
-                <Badge
-                  variant="outline"
-                  className={`w-full justify-start p-2 ${roleInfo.color}`}
-                >
-                  <RoleIcon className="h-3 w-3 mr-1" />
-                  <span className="text-xs">{roleInfo.description}</span>
-                </Badge>
+                <div className={`text-center p-2 rounded-md ${roleInfo.color}`}>
+                  <p className="text-xs">
+                    <RoleIcon className="h-3 w-3 inline-block mr-1" />
+                    {roleInfo.description}
+                  </p>
+                </div>
               </div>
 
               {/* Email Input */}

@@ -5,6 +5,25 @@ import { connectDB } from "@/lib/database"
 import { Vendor } from "@/models/vendor"
 import { Product } from "@/models/product"
 
+// Extend the Session user type to include 'role' and 'id'
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string
+      name: string
+      email: string
+      image?: string | null
+      role: string
+      isAdmin: boolean
+      mobileNo: string
+      shopAddress: string
+      upiId: string
+      isSuspended: boolean
+      isApproved: boolean
+    }
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -27,18 +46,46 @@ export async function GET(request: NextRequest) {
     
     if (search) {
       query.$or = [
-        { businessName: { $regex: search, $options: "i" } },
+        { "businessInfo.businessName": { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
-        { "businessInfo.description": { $regex: search, $options: "i" } }
+        { firstName: { $regex: search, $options: "i" } },
+        { lastName: { $regex: search, $options: "i" } }
       ]
     }
 
+    // Handle status parameter
     if (status) {
-      query.status = status
+      // Convert status to the correct accountStatus values
+      if (status === "pending") {
+        query.accountStatus = "under_review"
+        query.isApproved = false
+      } else if (status === "active") {
+        query.accountStatus = "active"
+        query.isApproved = true
+      } else if (status === "suspended" || status === "rejected") {
+        query.accountStatus = status
+      } else {
+        // Use the raw value if provided directly
+        query.accountStatus = status
+      }
     }
 
+    // Category filter
     if (category) {
-      query["businessInfo.category"] = category
+      query["businessInfo.businessCategory"] = category
+    }
+    
+    // Special parameter for pending vendor requests for admin approval
+    if (searchParams.get("pendingApproval") === "true") {
+      query.accountStatus = "under_review"
+      query.isApproved = false
+    }
+    
+    // Special parameter for pending requests count only (for admin dashboard)
+    if (searchParams.get("pendingCount") === "true") {
+      query.accountStatus = "under_review"
+      query.isApproved = false
+      // Just need the count, will be handled below
     }
 
     // If not admin, only show their own vendor data
@@ -56,6 +103,18 @@ export async function GET(request: NextRequest) {
 
     const total = await Vendor.countDocuments(query)
 
+    // Special case for just getting the count of pending vendors
+    if (searchParams.get("pendingCount") === "true") {
+      const pendingCount = await Vendor.countDocuments({
+        accountStatus: "under_review",
+        isApproved: false
+      })
+      
+      return NextResponse.json({
+        pendingCount
+      })
+    }
+    
     // Get additional stats for each vendor
     const vendorsWithStats = await Promise.all(
       vendors.map(async (vendor) => {
@@ -76,7 +135,8 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    return NextResponse.json({
+    // Add pending vendors count for admin dashboards
+    const response: any = {
       vendors: vendorsWithStats,
       pagination: {
         page,
@@ -84,7 +144,19 @@ export async function GET(request: NextRequest) {
         total,
         pages: Math.ceil(total / limit)
       }
-    })
+    }
+    
+    // Add pending count for admin dashboards if we're not already filtering for pending
+    if (session?.user?.role === "admin" && status !== "pending" && !searchParams.get("pendingApproval")) {
+      const pendingCount = await Vendor.countDocuments({
+        accountStatus: "under_review",
+        isApproved: false
+      })
+      
+      response.pendingCount = pendingCount
+    }
+
+    return NextResponse.json(response)
 
   } catch (error) {
     console.error("Error fetching vendors:", error)
@@ -155,7 +227,8 @@ export async function PATCH(request: NextRequest) {
         result = await Vendor.findByIdAndUpdate(
           vendorId,
           { 
-            status: "active",
+            accountStatus: "active", // Fix: Use accountStatus instead of status
+            isApproved: true, // Important: Set isApproved to true
             approvedAt: new Date(),
             approvedBy: session?.user?.id
           },
@@ -170,7 +243,8 @@ export async function PATCH(request: NextRequest) {
         result = await Vendor.findByIdAndUpdate(
           vendorId,
           { 
-            status: "rejected",
+            accountStatus: "rejected", // Fix: Use accountStatus instead of status
+            isApproved: false, // Ensure this is set to false
             rejectedAt: new Date(),
             rejectedBy: session?.user?.id,
             rejectionReason: data?.reason || "Not specified"
@@ -186,7 +260,8 @@ export async function PATCH(request: NextRequest) {
         result = await Vendor.findByIdAndUpdate(
           vendorId,
           { 
-            status: "suspended",
+            accountStatus: "suspended", // Fix: Use accountStatus instead of status
+            isSuspended: true, // Set the suspension flag
             suspendedAt: new Date(),
             suspendedBy: session?.user?.id,
             suspensionReason: data?.reason || "Not specified"

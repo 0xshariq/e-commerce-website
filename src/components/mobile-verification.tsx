@@ -114,17 +114,23 @@ export default function MobileVerification({
         body: JSON.stringify({
           action: "send-otp",
           phoneNumber: phoneNumber.replace(/\D/g, ''),
-          channel: verificationChannel
+          channel: "sms" // Always use SMS for now
         }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        setSuccess(`OTP sent to your mobile via ${verificationChannel.toUpperCase()}`)
+        setSuccess(`OTP sent to your mobile via SMS`)
         setStep("otp")
-        setTimeLeft(30) // 30 seconds before allowing resend
+        setTimeLeft(60) // 60 seconds before allowing resend
         setCanResend(false)
+        
+        // For development environments, auto-fill OTP if provided by backend
+        if (process.env.NODE_ENV === 'development' && data.otpCode) {
+          setOtpCode(data.otpCode)
+          console.log('[Dev Mode] Auto-filled OTP:', data.otpCode)
+        }
       } else {
         setError(data.error || "Failed to send OTP")
       }
@@ -166,9 +172,10 @@ export default function MobileVerification({
           onVerificationComplete(phoneNumber)
         }
       } else {
-        setError(data.error || "Invalid OTP. Please try again.")
+        setError(data.error || "Invalid or expired OTP code. Please try again.")
       }
     } catch (error) {
+      console.error("Verification error:", error)
       setError("Network error. Please try again.")
     } finally {
       setLoading(false)
@@ -258,13 +265,13 @@ export default function MobileVerification({
             </div>
 
             <div className="space-y-3">
-              <Label className="text-sm font-medium">Send OTP via:</Label>
+              <Label className="text-sm font-medium">Verification method:</Label>
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant={verificationChannel === "sms" ? "default" : "outline"}
+                  variant="default"
                   size="sm"
-                  onClick={() => setVerificationChannel("sms")}
+                  disabled
                   className="flex items-center gap-2"
                 >
                   <Phone className="h-4 w-4" />
@@ -272,13 +279,13 @@ export default function MobileVerification({
                 </Button>
                 <Button
                   type="button"
-                  variant={verificationChannel === "whatsapp" ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
-                  onClick={() => setVerificationChannel("whatsapp")}
+                  disabled
                   className="flex items-center gap-2"
                 >
                   <MessageSquare className="h-4 w-4" />
-                  WhatsApp
+                  WhatsApp (Coming soon)
                 </Button>
               </div>
             </div>

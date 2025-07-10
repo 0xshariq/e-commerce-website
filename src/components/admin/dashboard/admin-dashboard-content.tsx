@@ -169,7 +169,13 @@ export default function AdminDashboardContent() {
 
         {/* Pending Vendor Approvals */}
         <PendingVendorsCard 
-          pendingVendors={dashboardData.pendingVendors}
+          pendingVendors={dashboardData.pendingApprovals?.vendors?.map(vendor => ({
+            id: vendor.id,
+            businessName: vendor.name,
+            email: vendor.email,
+            registrationDate: vendor.createdAt,
+            businessType: vendor.businessType || "Unknown"
+          }))}
           onApprove={(vendorId) => handleVendorAction(vendorId, "approve")}
           onReject={(vendorId) => handleVendorAction(vendorId, "reject")}
         />

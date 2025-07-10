@@ -36,34 +36,69 @@ export const authOptions = {
         
         await dbConnect()
 
-        // Try to find user in all collections
+        // Get the role selected by the user
+        const selectedRole = credentials.role || "customer"
         let user = null
-        let userRole = null
-
-        // Check Customer first
-        user = await Customer.findOne({ email: credentials.email })
-        if (user) {
-          userRole = "customer"
-        }
-
-        // Check Vendor if not found in Customer
-        if (!user) {
-          user = await Vendor.findOne({ email: credentials.email })
-          if (user) {
-            userRole = "vendor"
-            // Check if vendor is approved
-            if (!user.isApproved) {
-              throw new Error("Your vendor account is pending admin approval")
+        let userRole = selectedRole
+        
+        try {
+          // Check the model corresponding to the selected role first
+          switch(selectedRole) {
+            case "customer":
+              user = await Customer.findOne({ email: credentials.email })
+              break
+            case "vendor":
+              user = await Vendor.findOne({ email: credentials.email })
+              // Check if vendor is approved
+              if (user && !user.isApproved) {
+                throw new Error("Your vendor account is pending admin approval")
+              }
+              break
+            case "admin":
+              user = await Admin.findOne({ email: credentials.email })
+              break
+            default:
+              break
+          }
+          
+          // If not found and not strict mode, try other collections
+          if (!user) {
+            console.log(`User not found in ${selectedRole} collection, checking others...`)
+            
+            // Try Customer if not already checked
+            if (selectedRole !== "customer") {
+              user = await Customer.findOne({ email: credentials.email })
+              if (user) {
+                userRole = "customer"
+                console.log("Found in customer collection instead")
+              }
+            }
+            
+            // Try Vendor if not found in Customer and not already checked
+            if (!user && selectedRole !== "vendor") {
+              user = await Vendor.findOne({ email: credentials.email })
+              if (user) {
+                userRole = "vendor"
+                console.log("Found in vendor collection instead")
+                // Check if vendor is approved
+                if (!user.isApproved) {
+                  throw new Error("Your vendor account is pending admin approval")
+                }
+              }
+            }
+            
+            // Try Admin if not found in Vendor and not already checked
+            if (!user && selectedRole !== "admin") {
+              user = await Admin.findOne({ email: credentials.email })
+              if (user) {
+                userRole = "admin"
+                console.log("Found in admin collection instead")
+              }
             }
           }
-        }
-
-        // Check Admin if not found in Vendor
-        if (!user) {
-          user = await Admin.findOne({ email: credentials.email })
-          if (user) {
-            userRole = "admin"
-          }
+        } catch (error) {
+          console.error("Error finding user:", error)
+          throw error
         }
 
         if (!user) {
@@ -184,7 +219,6 @@ export const authOptions = {
           role: "customer",
           isAdmin: false,
           mobileNo: existingUser.mobileNo || "",
-          upiId: "",
           isSuspended: existingUser.isSuspended || false,
           isApproved: true,
         }

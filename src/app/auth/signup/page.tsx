@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
 import Link from "next/link"
 import { format } from "date-fns"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,6 +39,36 @@ import {
   ChevronRight
 } from "lucide-react"
 
+// Helper component for image preview with proper cleanup
+function PreviewImage({ file }: { file: File }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Create the preview URL
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    
+    // Clean up the URL when the component unmounts
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [file]);
+  
+  if (!previewUrl) {
+    return <div className="animate-pulse bg-gray-200 w-24 h-24 rounded-full"></div>;
+  }
+  
+  return (
+    <div className="mt-2 w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200">
+      <img 
+        src={previewUrl}
+        alt="Profile preview" 
+        className="w-full h-full object-cover"
+      />
+    </div>
+  );
+}
+
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
     // Basic fields (all roles)
@@ -48,6 +79,7 @@ export default function SignUpPage() {
     confirmPassword: "",
     mobileNo: "",
     role: "customer",
+    profileImage: null as File | null,
     
     // Verification preference
     verificationPreference: "email", // "email" or "mobile"
@@ -241,7 +273,86 @@ export default function SignUpPage() {
     }
 
     try {
-      // Prepare the data for the API
+      // Create FormData if there's a profile image to upload
+      if (formData.profileImage) {
+        const multipartFormData = new FormData();
+        
+        // Add the profile image
+        multipartFormData.append('profileImage', formData.profileImage);
+        
+        // Add user data as JSON
+        const userData = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+          mobileNo: formData.mobileNo,
+          role: formData.role,
+          verificationPreference: formData.verificationPreference,
+          // Admin specific field
+          ...(formData.role === "admin" && {
+            adminKey: formData.adminKey,
+          }),
+          // Customer specific fields
+          ...(formData.role === "customer" && {
+            dateOfBirth: formData.dateOfBirth?.toISOString() || undefined,
+            gender: formData.gender || undefined,
+          }),
+          // Vendor specific fields
+          ...(formData.role === "vendor" && {
+            businessName: formData.businessName,
+            businessType: formData.businessType,
+            businessCategory: formData.businessCategory,
+            panNumber: formData.panNumber,
+            upiId: formData.upiId,
+            gstNumber: formData.gstNumber || undefined,
+            businessEmail: formData.businessEmail || undefined,
+            businessPhone: formData.businessPhone || undefined,
+            businessRegistrationNumber: formData.businessRegistrationNumber || undefined,
+            yearEstablished: formData.yearEstablished ? parseInt(formData.yearEstablished) : undefined,
+            alternatePhone: formData.alternatePhone || undefined,
+          }),
+          // Address fields (for both customer and vendor)
+          ...(formData.addressLine1 && {
+            addressLine1: formData.addressLine1,
+            addressLine2: formData.addressLine2 || undefined,
+            landmark: formData.landmark || undefined,
+            city: formData.city,
+            state: formData.state,
+            postalCode: formData.postalCode,
+            country: formData.country,
+          }),
+        };
+        
+        multipartFormData.append('jsonData', JSON.stringify(userData));
+        
+        const response = await fetch("/api/auth/register", {
+          method: "POST",
+          body: multipartFormData, // No Content-Type header for multipart/form-data
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          setRegistrationData(data);
+          setSuccess(true);
+          
+          // Redirect to verification page after 3 seconds
+          setTimeout(() => {
+            if (formData.verificationPreference === 'mobile') {
+              router.push(`/auth/verify-mobile?email=${encodeURIComponent(formData.email)}&mobile=${encodeURIComponent(formData.mobileNo)}`);
+            } else {
+              router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+            }
+          }, 3000);
+        } else {
+          setError(data.error || "Registration failed. Please try again.");
+        }
+        
+        return; // Exit early if we used FormData
+      }
+      
+      // If no image, proceed with JSON payload
       const registrationData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -326,12 +437,21 @@ export default function SignUpPage() {
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-    setError("")
+    const target = e.target;
+    
+    // Handle file inputs separately
+    if (target.type === 'file' && 'files' in target) {
+      const file = target.files?.[0] || null;
+      setFormData({ ...formData, [target.name]: file });
+    } else {
+      setFormData({ ...formData, [target.name]: target.value });
+    }
+    
+    setError("");
 
     // Update password strength on password field change
-    if (e.target.name === "password") {
-      checkPasswordStrength(e.target.value)
+    if (target.name === "password") {
+      checkPasswordStrength(target.value)
     }
   }
 
@@ -509,6 +629,32 @@ export default function SignUpPage() {
               {/* Basic Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-gray-900">Basic Information</h3>
+                
+                {/* Profile Image */}
+                <div className="space-y-2">
+                  <Label htmlFor="profileImage">Profile Image (Optional)</Label>
+                  <Input
+                    id="profileImage"
+                    name="profileImage"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFormData({ ...formData, profileImage: file });
+                    }}
+                    className="cursor-pointer"
+                  />
+                  {formData.profileImage && (
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        Selected: {formData.profileImage.name}
+                      </p>
+                      {formData.profileImage && (
+                        <PreviewImage file={formData.profileImage} />
+                      )}
+                    </div>
+                  )}
+                </div>
                 
                 {/* First Name and Last Name */}
                 <div className="grid grid-cols-2 gap-4">

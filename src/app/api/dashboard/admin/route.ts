@@ -50,10 +50,10 @@ export async function GET() {
       }),
 
       // Vendor stats
-      Vendor.countDocuments({ isActive: true }),
+      Vendor.countDocuments({ accountStatus: "active" }),
       Vendor.countDocuments({ 
-        accountStatus: "pending",
-        isActive: true
+        accountStatus: "under_review",
+        isApproved: false
       }),
 
       // Product stats
@@ -108,7 +108,9 @@ export async function GET() {
 
       // Pending approvals
       Promise.all([
-        Vendor.find({ accountStatus: "pending" }).limit(20),
+        Vendor.find({ accountStatus: "under_review", isApproved: false })
+          .select("firstName lastName email businessInfo createdAt")
+          .limit(20),
         Product.find({ adminApprovalStatus: "pending" })
           .select("name category pricing createdAt")
           .populate("vendorId", "businessInfo.businessName")

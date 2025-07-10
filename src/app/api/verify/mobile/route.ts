@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import getServerSession from "next-auth/next"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { TwilioService } from "@/lib/twilio"
 import { connectDB } from "@/lib/database"
@@ -15,6 +15,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Action is required" }, { status: 400 })
     }
 
+    // Validate Twilio configuration before proceeding
+    const twilioConfig = TwilioService.validateConfiguration();
+    if (!twilioConfig.isValid) {
+      console.error(`Twilio configuration error: ${twilioConfig.message}`);
+      // Continue anyway for database-backed OTP
+    }
+
     switch (action) {
       case "send-otp":
         return await sendOTP(phoneNumber, channel)
@@ -28,9 +35,13 @@ export async function POST(request: NextRequest) {
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Mobile verification error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Internal server error", 
+      details: error.message || "Unknown error",
+      status: 500 
+    })
   }
 }
 
@@ -46,15 +57,26 @@ async function sendOTP(phoneNumber: string, channel: 'sms' | 'whatsapp') {
     }, { status: 400 })
   }
 
-  const result = await TwilioService.sendOTP(phoneNumber, channel)
+  // Always use SMS for now (whatsapp option is kept for future feature)
+  const actualChannel = 'sms'
+  const result = await TwilioService.sendOTP(phoneNumber, actualChannel)
 
   if (result.success) {
-    return NextResponse.json({
+    // Return development mode OTP code if present
+    const response: any = {
       success: true,
       message: result.message,
-      channel
-    })
+      channel: actualChannel
+    }
+    
+    // In development mode, pass OTP back to frontend for easier testing
+    if (process.env.NODE_ENV === 'development' && result.otpCode) {
+      response.otpCode = result.otpCode
+    }
+    
+    return NextResponse.json(response)
   } else {
+    console.error('Failed to send OTP:', result.error)
     return NextResponse.json({
       error: result.message,
       details: result.error
@@ -69,7 +91,7 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
     }, { status: 400 })
   }
 
-  // Verify OTP with Twilio
+  // Verify OTP against our database
   const result = await TwilioService.verifyOTP(phoneNumber, otpCode)
 
   if (!result.success) {
@@ -135,7 +157,7 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
       }
     } catch (dbError) {
       console.error("Database update error:", dbError)
-      // Still return success for Twilio verification, but note DB issue
+      // Still return success for verification, but note DB issue
       return NextResponse.json({
         success: true,
         message: "Phone number verified successfully",
@@ -155,6 +177,7 @@ async function cancelVerification(phoneNumber: string) {
     return NextResponse.json({ error: "Phone number is required" }, { status: 400 })
   }
 
+  // Clear any pending OTPs for this number from the database
   const result = await TwilioService.cancelVerification(phoneNumber)
 
   if (result.success) {
@@ -175,30 +198,39 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session) {
+    if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     await connectDB()
 
-    let user
-    switch (session.user.role) {
+    let user;
+    const userId = session.user.id;
+    const userRole = session.user.role;
+    
+    if (!userId || !userRole) {
+      return NextResponse.json({ error: "Invalid session data" }, { status: 400 })
+    }
+
+    switch (userRole) {
       case "customer":
-        user = await Customer.findById(session.user.id).select("phone phoneVerified phoneVerifiedAt")
+        user = await Customer.findById(userId).select("phone phoneVerified phoneVerifiedAt")
         break
       case "vendor":
-        user = await Vendor.findById(session.user.id).select("contactInfo.phone phoneVerified phoneVerifiedAt")
+        user = await Vendor.findById(userId).select("contactInfo.phone phoneVerified phoneVerifiedAt")
         break
       case "admin":
-        user = await Admin.findById(session.user.id).select("phone phoneVerified phoneVerifiedAt")
+        user = await Admin.findById(userId).select("phone phoneVerified phoneVerifiedAt")
         break
+      default:
+        return NextResponse.json({ error: "Invalid user role" }, { status: 400 })
     }
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const phone = session.user.role === "vendor" ? user.contactInfo?.phone : user.phone
+    const phone = userRole === "vendor" ? user.contactInfo?.phone : user.phone
 
     return NextResponse.json({
       phoneNumber: phone,

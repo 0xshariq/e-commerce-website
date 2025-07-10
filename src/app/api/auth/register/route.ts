@@ -18,10 +18,46 @@ import {
   validatePostalCode,
   getSecureHeaders
 } from "@/utils/auth"
+import { processProfileImageUpload } from "@/utils/upload"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    // Check if the request has a multipart form data
+    const contentType = request.headers.get('content-type') || '';
+    let body;
+    let profileImageUploadResult = null;
+    
+    if (contentType.includes('multipart/form-data')) {
+      // Handle multipart form data with file upload
+      const formData = await request.formData();
+      
+      // Process the profile image if it exists
+      if (formData.has('profileImage')) {
+        profileImageUploadResult = await processProfileImageUpload(formData);
+        if (!profileImageUploadResult.success) {
+          return NextResponse.json(
+            { error: profileImageUploadResult.message },
+            { status: 400 }
+          );
+        }
+      }
+      
+      // Get other form fields
+      body = Object.fromEntries(formData);
+      
+      // Parse JSON fields that were stringified for form submission
+      try {
+        if (body.jsonData) {
+          const jsonData = JSON.parse(body.jsonData as string);
+          body = { ...jsonData };
+        }
+      } catch (error) {
+        console.error('Error parsing JSON data from form:', error);
+      }
+    } else {
+      // Handle regular JSON request
+      body = await request.json();
+    }
     
     if (!body || typeof body !== 'object') {
       return NextResponse.json(
@@ -220,6 +256,12 @@ export async function POST(request: NextRequest) {
           mobileNo: sanitizeInput(mobileNo),
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
           gender: gender,
+          image: profileImageUploadResult?.cloudinaryUrl || profileImageUploadResult?.publicUrl || null,
+          profileImage: {
+            localPath: profileImageUploadResult?.localPath || null,
+            cloudinaryUrl: profileImageUploadResult?.cloudinaryUrl || null,
+            publicPath: profileImageUploadResult?.publicUrl || null
+          },
           isEmailVerified: false,
           isMobileVerified: false,
           emailVerificationToken: verificationToken,
@@ -285,6 +327,12 @@ export async function POST(request: NextRequest) {
           password: hashedPassword,
           mobileNo: sanitizeInput(mobileNo),
           alternatePhone: alternatePhone ? sanitizeInput(alternatePhone) : undefined,
+          image: profileImageUploadResult?.cloudinaryUrl || profileImageUploadResult?.publicUrl || null,
+          profileImage: {
+            localPath: profileImageUploadResult?.localPath || null,
+            cloudinaryUrl: profileImageUploadResult?.cloudinaryUrl || null,
+            publicPath: profileImageUploadResult?.publicUrl || null
+          },
           isEmailVerified: false,
           isMobileVerified: false,
           emailVerificationToken: verificationToken,
@@ -351,6 +399,12 @@ export async function POST(request: NextRequest) {
           password: hashedPassword,
           mobileNo: sanitizeInput(mobileNo),
           isActive: true,
+          image: profileImageUploadResult?.cloudinaryUrl || profileImageUploadResult?.publicUrl || null,
+          profileImage: {
+            localPath: profileImageUploadResult?.localPath || null,
+            cloudinaryUrl: profileImageUploadResult?.cloudinaryUrl || null,
+            publicPath: profileImageUploadResult?.publicUrl || null
+          },
           isEmailVerified: false,
           isMobileVerified: false,
           emailVerificationToken: verificationToken,
