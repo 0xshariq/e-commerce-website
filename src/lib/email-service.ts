@@ -5,9 +5,9 @@ import { renderToString } from "react-dom/server"
 import React from "react"
 
 // Import role-specific email templates
-import CustomerVerificationEmail from "@/templates/email/customer-verification-email"
-import VendorOTPVerification from "@/templates/email/vendor-verification-email"
-import AdminVerificationEmail from "@/templates/email/admin-verification-email"
+import CustomerVerificationEmail from "../../templates/email/customer-verification-email"
+import VendorVerificationEmail from "../../templates/email/vendor-verification-email"
+import AdminVerificationEmail from "../../templates/email/admin-verification-email"
 
 // Initialize SendGrid if API key is provided
 if (process.env.SENDGRID_API_KEY) {

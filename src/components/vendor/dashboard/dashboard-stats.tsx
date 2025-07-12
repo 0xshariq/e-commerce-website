@@ -227,7 +227,7 @@ export default function DashboardStats() {
               {formatCurrency(stats.totalRevenue)}
             </div>
             <p className="text-xs text-green-400">
-              {stats.totalOrders} total orders
+              {stats.totalOrders > 0 ? `${stats.totalOrders} total orders` : "No orders yet"}
             </p>
           </CardContent>
         </Card>
@@ -244,7 +244,7 @@ export default function DashboardStats() {
               {stats.totalProducts}
             </div>
             <p className="text-xs text-blue-400">
-              {stats.activeProducts} active
+              {stats.totalProducts > 0 ? `${stats.activeProducts} active` : "No products added yet"}
             </p>
           </CardContent>
         </Card>
@@ -261,7 +261,7 @@ export default function DashboardStats() {
               {stats.totalOrders}
             </div>
             <p className="text-xs text-orange-400">
-              {stats.pendingOrders} pending
+              {stats.totalOrders > 0 ? `${stats.pendingOrders} pending` : "No orders received yet"}
             </p>
           </CardContent>
         </Card>
@@ -278,7 +278,9 @@ export default function DashboardStats() {
               {stats.activeCoupons + stats.activeSales}
             </div>
             <p className="text-xs text-purple-400">
-              {stats.activeCoupons} coupons, {stats.activeSales} sales
+              {(stats.activeCoupons + stats.activeSales) > 0 
+                ? `${stats.activeCoupons} coupons, ${stats.activeSales} sales` 
+                : "No active promotions"}
             </p>
           </CardContent>
         </Card>

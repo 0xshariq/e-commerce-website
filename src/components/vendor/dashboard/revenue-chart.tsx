@@ -81,20 +81,30 @@ export default function RevenueChart() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-64 flex items-end justify-between gap-2">
-          {monthlyRevenue.map((data, index) => (
-            <div key={index} className="flex-1 flex flex-col items-center">
-              <div 
-                className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t min-h-[20px] transition-all hover:from-blue-500 hover:to-blue-300"
-                style={{ 
-                  height: `${Math.max(20, maxRevenue > 0 ? (data.revenue / maxRevenue) * 200 : 20)}px` 
-                }}
-                title={`₹${data.revenue.toLocaleString()}`}
-              />
-              <span className="text-xs text-gray-400 mt-2">{data.month}</span>
+        {maxRevenue > 0 ? (
+          <div className="h-64 flex items-end justify-between gap-2">
+            {monthlyRevenue.map((data, index) => (
+              <div key={index} className="flex-1 flex flex-col items-center">
+                <div 
+                  className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t min-h-[20px] transition-all hover:from-blue-500 hover:to-blue-300"
+                  style={{ 
+                    height: `${Math.max(20, maxRevenue > 0 ? (data.revenue / maxRevenue) * 200 : 20)}px` 
+                  }}
+                  title={`₹${data.revenue.toLocaleString()}`}
+                />
+                <span className="text-xs text-gray-400 mt-2">{data.month}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center">
+            <div className="text-center">
+              <BarChart3 className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-400 text-sm">No revenue data yet</p>
+              <p className="text-gray-500 text-xs">Start selling to see your revenue trends</p>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

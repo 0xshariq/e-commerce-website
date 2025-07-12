@@ -81,16 +81,14 @@ export default function AdminProfilePage() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/profile");
-      
-      if (!response.ok) {
+      const response = await axios.get("/api/admin/profile");
+      if (response.data.success && response.data.profile) {
+        setProfile(response.data.profile);
+      } else {
         throw new Error("Failed to fetch profile");
       }
-
-      const data = await response.json();
-      setProfile(data.profile);
-    } catch (error) {
-      setError("Failed to load profile data");
+    } catch (error: any) {
+      setError(error?.response?.data?.error || "Failed to load profile data");
     } finally {
       setLoading(false);
     }
@@ -98,36 +96,25 @@ export default function AdminProfilePage() {
 
   const handleSaveProfile = async () => {
     if (!profile) return;
-
     try {
       setSaving(true);
       setError("");
-
       const updateData = {
-        name: profile.name,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
         mobileNo: profile.mobileNo,
       };
-
-      const response = await fetch("/api/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateData),
-      });
-
-      if (!response.ok) {
+      const response = await axios.put("/api/admin/profile", updateData);
+      if (response.data.success && response.data.profile) {
+        setProfile(response.data.profile);
+        setSuccess("Profile updated successfully!");
+        setIsEditing(false);
+        setTimeout(() => setSuccess(""), 3000);
+      } else {
         throw new Error("Failed to update profile");
       }
-
-      const data = await response.json();
-      setProfile(data.profile);
-      setSuccess("Profile updated successfully!");
-      setIsEditing(false);
-      
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (error) {
-      setError("Failed to update profile");
+    } catch (error: any) {
+      setError(error?.response?.data?.error || "Failed to update profile");
     } finally {
       setSaving(false);
     }
