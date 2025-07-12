@@ -46,8 +46,9 @@ import {
 import { formatDate, formatNumber, formatCurrency } from "@/utils/formatting";
 
 interface VendorProfile {
-  id: string;
-  name: string;
+  _id: string;
+  firstName: string;
+  lastName: string;
   email: string;
   mobileNo?: string;
   isEmailVerified: boolean;
@@ -59,13 +60,7 @@ interface VendorProfile {
   gstNumber?: string;
   panNumber?: string;
   upiId?: string;
-  address?: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
+  shopAddress?: string;
   bankDetails?: {
     accountNumber: string;
     ifscCode: string;
@@ -112,7 +107,7 @@ export default function VendorProfilePage() {
       setLoading(true);
       setError("");
       
-      const response = await axios.get("/api/profile");
+      const response = await axios.get("/api/vendor/profile");
       
       if (response.data.success && response.data.profile) {
         setProfile(response.data.profile);
@@ -135,7 +130,8 @@ export default function VendorProfilePage() {
       setSuccess("");
       
       const updateData = {
-        name: profile.name,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
         mobileNo: profile.mobileNo,
         businessName: profile.businessName,
         businessType: profile.businessType,
@@ -143,11 +139,11 @@ export default function VendorProfilePage() {
         gstNumber: profile.gstNumber,
         panNumber: profile.panNumber,
         upiId: profile.upiId,
-        address: profile.address,
+        shopAddress: profile.shopAddress,
         bankDetails: profile.bankDetails,
       };
 
-      const response = await axios.put("/api/profile", updateData);
+      const response = await axios.put("/api/vendor/profile", updateData);
 
       if (response.data.success && response.data.profile) {
         setProfile(response.data.profile);
@@ -240,9 +236,9 @@ export default function VendorProfilePage() {
             <CardHeader className="text-center pb-4">
               <div className="relative mx-auto mb-4">
                 <Avatar className="h-20 w-20 sm:h-24 sm:w-24 mx-auto">
-                  <AvatarImage src={profile.profileImage || ""} alt={profile.name} />
+                  <AvatarImage src={profile.profileImage || ""} alt={`${profile.firstName} ${profile.lastName}`} />
                   <AvatarFallback className="bg-green-600 text-white text-xl sm:text-2xl">
-                    {profile.name?.charAt(0).toUpperCase()}
+                    {profile.firstName?.charAt(0).toUpperCase()}{profile.lastName?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <Button
@@ -558,16 +554,30 @@ export default function VendorProfilePage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name" className="text-sm font-medium">
-                          Contact Person
+                        <Label htmlFor="firstName" className="text-sm font-medium">
+                          First Name
                         </Label>
                         <Input
-                          id="name"
-                          value={profile.name || ""}
-                          onChange={(e) => handleInputChange("name", e.target.value)}
+                          id="firstName"
+                          value={profile.firstName || ""}
+                          onChange={(e) => handleInputChange("firstName", e.target.value)}
                           disabled={!isEditing}
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName" className="text-sm font-medium">
+                          Last Name
+                        </Label>
+                        <Input
+                          id="lastName"
+                          value={profile.lastName || ""}
+                          onChange={(e) => handleInputChange("lastName", e.target.value)}
+                          disabled={!isEditing}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="email" className="text-sm font-medium">
                           Email Address
@@ -673,57 +683,16 @@ export default function VendorProfilePage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="sm:col-span-2">
-                          <Label htmlFor="street" className="text-sm font-medium">Street Address</Label>
-                          <Input
-                            id="street"
-                            placeholder="Enter your street address"
-                            value={profile.address?.street || ""}
-                            onChange={(e) => handleInputChange("address.street", e.target.value)}
-                            disabled={!isEditing}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="city" className="text-sm font-medium">City</Label>
-                          <Input
-                            id="city"
-                            placeholder="City"
-                            value={profile.address?.city || ""}
-                            onChange={(e) => handleInputChange("address.city", e.target.value)}
-                            disabled={!isEditing}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="state" className="text-sm font-medium">State</Label>
-                          <Input
-                            id="state"
-                            placeholder="State"
-                            value={profile.address?.state || ""}
-                            onChange={(e) => handleInputChange("address.state", e.target.value)}
-                            disabled={!isEditing}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="zipCode" className="text-sm font-medium">ZIP Code</Label>
-                          <Input
-                            id="zipCode"
-                            placeholder="ZIP Code"
-                            value={profile.address?.zipCode || ""}
-                            onChange={(e) => handleInputChange("address.zipCode", e.target.value)}
-                            disabled={!isEditing}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="country" className="text-sm font-medium">Country</Label>
-                          <Input
-                            id="country"
-                            placeholder="Country"
-                            value={profile.address?.country || "India"}
-                            onChange={(e) => handleInputChange("address.country", e.target.value)}
-                            disabled={!isEditing}
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="shopAddress" className="text-sm font-medium">Shop Address</Label>
+                        <Textarea
+                          id="shopAddress"
+                          placeholder="Enter your complete shop address"
+                          value={profile.shopAddress || ""}
+                          onChange={(e) => handleInputChange("shopAddress", e.target.value)}
+                          disabled={!isEditing}
+                          className="min-h-[100px]"
+                        />
                       </div>
                     </div>
                   </CardContent>
@@ -940,7 +909,7 @@ export default function VendorProfilePage() {
                     <p className="text-sm text-gray-500 mt-1 mb-4">
                       Start adding products to your store
                     </p>
-                    <Link href="/(auth)/vendor/products/create">
+                    <Link href="/vendor/products/create">
                       <Button className="bg-green-600 hover:bg-green-700">
                         <ShoppingBag className="h-4 w-4 mr-2" />
                         Add Your First Product

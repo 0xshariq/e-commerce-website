@@ -1,9 +1,9 @@
 import twilio from 'twilio';
 import { connectDB } from './database';
 import mongoose from 'mongoose';
-import { generateCustomerOTPSMS, type CustomerOTPSMSData } from '@/templates/sms/customer-sms-templates";
-import { generateVendorOTPSMS, type VendorOTPSMSData } from '@/templates/sms/vendor-sms-templates';
-import { generateAdminOTPSMS, type AdminOTPSMSData } from '@/templates/sms/admin-sms-templates';
+import { generateCustomerOTPSMS, type CustomerOTPSMSData } from '@/templates/sms/customer-sms-templates.ts';
+import { generateVendorOTPSMS, type VendorOTPSMSData } from '@/templates/sms/vendor-sms-templates.ts';
+import { generateAdminOTPSMS, type AdminOTPSMSData } from '@/templates/sms/admin-sms-templates.ts';
 
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID

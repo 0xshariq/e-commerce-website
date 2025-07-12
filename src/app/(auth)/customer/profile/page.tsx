@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import axios from "axios";
 import Link from "next/link";
 import {
   Card,
@@ -52,36 +53,40 @@ import {
 } from "lucide-react";
 import { formatDate, formatNumber } from "@/utils/formatting";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface CustomerProfile {
-  id: string;
-  name: string;
+  _id: string;
+  firstName: string;
+  lastName: string;
   email: string;
   mobileNo?: string;
   isEmailVerified: boolean;
   isMobileVerified: boolean;
   dateOfBirth?: string;
+  gender?: string;
   profileImage?: string;
-  address?: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
+  addresses?: any[];
   preferences?: {
-    newsletter: boolean;
-    notifications: boolean;
+    notifications: {
+      email: boolean;
+      sms: boolean;
+      push: boolean;
+      orderUpdates: boolean;
+      promotions: boolean;
+      recommendations: boolean;
+    };
+    privacy: {
+      profileVisibility: string;
+      activityTracking: boolean;
+      dataSharing: boolean;
+    };
   };
-  stats?: {
-    totalOrders: number;
-    completedOrders: number;
-    pendingOrders: number;
-    cancelledOrders: number;
-    totalSpent: number;
-    wishlistItems: number;
-    reviewsGiven: number;
-  };
+  totalOrders: number;
+  totalSpent: number;
+  loyaltyPoints: number;
+  membershipTier: string;
+  role: string;
 }
 
 export default function CustomerProfilePage() {
@@ -109,19 +114,16 @@ export default function CustomerProfilePage() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/profile");
+      const response = await axios.get("/api/customer/profile");
       
-      if (!response.ok) {
-        throw new Error("Failed to fetch profile");
-      }
-
-      const data = await response.json();
-      setProfile(data.profile);
+      setProfile(response.data.profile);
       
-      if (data.profile.dateOfBirth) {
-        setSelectedDate(new Date(data.profile.dateOfBirth));
+      if (response.data.profile.dateOfBirth) {
+        setSelectedDate(new Date(response.data.profile.dateOfBirth));
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Profile fetch error:", error);
+      toast.error("Failed to load profile data");
       setError("Failed to load profile data");
     } finally {
       setLoading(false);
@@ -136,33 +138,26 @@ export default function CustomerProfilePage() {
       setError("");
 
       const updateData = {
-        name: profile.name,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
         mobileNo: profile.mobileNo,
         dateOfBirth: selectedDate?.toISOString(),
-        address: profile.address,
+        gender: profile.gender,
+        addresses: profile.addresses,
         preferences: profile.preferences,
       };
 
-      const response = await fetch("/api/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateData),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update profile");
-      }
-
-      const data = await response.json();
-      setProfile(data.profile);
-      setSuccess("Profile updated successfully!");
-      setIsEditing(false);
+      const response = await axios.put("/api/customer/profile", updateData);
       
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (error) {
-      setError("Failed to update profile");
+      setProfile(response.data.profile);
+      setIsEditing(false);
+      toast.success("Profile updated successfully");
+      setSuccess("Profile updated successfully");
+    } catch (error: any) {
+      console.error("Profile update error:", error);
+      const errorMessage = error.response?.data?.error || "Failed to update profile";
+      toast.error(errorMessage);
+      setError(errorMessage);
     } finally {
       setSaving(false);
     }
