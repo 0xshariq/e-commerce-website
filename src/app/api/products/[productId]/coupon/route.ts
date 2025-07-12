@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { connectDB } from "@/lib/database"
 import { Coupon, CouponZodSchema } from "@/models/coupon"
@@ -9,13 +9,51 @@ export async function GET(request: NextRequest, { params }: { params: { productI
   try {
     await connectDB()
 
-    const coupons = await Coupon.find({
-      productId: params.productId,
-      isActive: true,
-      expiryDate: { $gte: new Date() },
-    }).populate("vendorId", "businessName")
+    const { searchParams } = new URL(request.url)
+    const couponType = searchParams.get('type')
+    const isActive = searchParams.get('active')
 
-    return NextResponse.json({ coupons })
+    // Build query
+    const query: any = { productId: params.productId }
+    
+    if (isActive !== 'false') {
+      query.isActive = true
+      query.expiryDate = { $gte: new Date() }
+    }
+    
+    if (couponType && ['normal', 'special'].includes(couponType)) {
+      query.couponType = couponType
+    }
+
+    const coupons = await Coupon.find(query)
+      .populate("vendorId", "businessName contactPersonName email")
+      .populate("productId", "productName imageUrl productPrice")
+      .sort({ createdAt: -1 })
+
+    // Add calculated fields
+    const couponsWithStats = coupons.map(coupon => {
+      const couponObj = coupon.toObject()
+      const daysUntilExpiry = Math.ceil((coupon.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+      const usagePercentage = (coupon.usedCount / coupon.usageLimit) * 100
+
+      return {
+        ...couponObj,
+        isValid: (coupon.expiryDate > new Date() && coupon.isActive && coupon.usedCount < coupon.usageLimit),
+        daysUntilExpiry: Math.max(0, daysUntilExpiry),
+        usagePercentage: Math.round(usagePercentage * 10) / 10,
+        remainingUses: Math.max(0, coupon.usageLimit - coupon.usedCount),
+        isExpiringSoon: daysUntilExpiry <= 7 && daysUntilExpiry > 0,
+        canApplyUserLimit: coupon.couponType === 'special'
+      }
+    })
+
+    return NextResponse.json({ 
+      coupons: couponsWithStats,
+      totalCoupons: coupons.length,
+      activeCoupons: coupons.filter(c => c.isValidCoupon()).length,
+      normalCoupons: coupons.filter(c => c.couponType === 'normal').length,
+      specialCoupons: coupons.filter(c => c.couponType === 'special').length
+    })
   } catch (error) {
     console.error("Error fetching product coupons:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -26,7 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: { product
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session || session.user.role !== "vendor") {
+    if (!session || session?.user?.role !== "vendor") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -48,7 +86,7 @@ export async function POST(request: NextRequest, { params }: { params: { product
     await connectDB()
 
     // Verify product belongs to vendor
-    const product = await Product.findOne({ _id: params.productId, vendorId: session.user.id })
+    const product = await Product.findOne({ _id: params.productId, vendorId: session?.user?.id })
     if (!product) {
       return NextResponse.json({ error: "Product not found or unauthorized" }, { status: 404 })
     }
@@ -61,7 +99,7 @@ export async function POST(request: NextRequest, { params }: { params: { product
 
     const coupon = new Coupon({
       ...validation.data,
-      vendorId: session.user.id,
+      vendorId: session?.user?.id,
       productId: params.productId,
     })
 
@@ -78,19 +116,19 @@ export async function DELETE(request: NextRequest, { params }: { params: { produ
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session || session.user.role !== "vendor") {
+    if (!session || session?.user?.role !== "vendor") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     await connectDB()
 
     // Verify product belongs to vendor
-    const product = await Product.findOne({ _id: params.productId, vendorId: session.user.id })
+    const product = await Product.findOne({ _id: params.productId, vendorId: session?.user?.id })
     if (!product) {
       return NextResponse.json({ error: "Product not found or unauthorized" }, { status: 404 })
     }
 
-    const deletedCount = await Coupon.deleteMany({ productId: params.productId, vendorId: session.user.id })
+    const deletedCount = await Coupon.deleteMany({ productId: params.productId, vendorId: session?.user?.id })
 
     if (deletedCount.deletedCount === 0) {
       return NextResponse.json({ error: "No coupons found for this product" }, { status: 404 })
@@ -106,7 +144,7 @@ export async function PUT(request: NextRequest, { params }: { params: { productI
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session || session.user.role !== "vendor") {
+    if (!session || session?.user?.role !== "vendor") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -133,7 +171,7 @@ export async function PUT(request: NextRequest, { params }: { params: { productI
     await connectDB()
 
     // Verify product belongs to vendor
-    const product = await Product.findOne({ _id: params.productId, vendorId: session.user.id })
+    const product = await Product.findOne({ _id: params.productId, vendorId: session?.user?.id })
     if (!product) {
       return NextResponse.json({ error: "Product not found or unauthorized" }, { status: 404 })
     }
@@ -142,7 +180,7 @@ export async function PUT(request: NextRequest, { params }: { params: { productI
       {
         _id: couponId,
         productId: params.productId,
-        vendorId: session.user.id,
+        vendorId: session?.user?.id,
       },
       validation.data,
       { new: true, runValidators: true },

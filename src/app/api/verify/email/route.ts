@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { TwilioService } from "@/lib/twilio"
+import { EmailService } from "@/lib/email-service"
 import { connectDB } from "@/lib/database"
 import { Customer } from "@/models/customer"
 import { Vendor } from "@/models/vendor"
@@ -9,34 +9,34 @@ import { Admin } from "@/models/admin"
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, phoneNumber, otpCode, channel = 'sms' } = await request.json()
+    const { action, email, code } = await request.json()
 
     if (!action) {
       return NextResponse.json({ error: "Action is required" }, { status: 400 })
     }
 
-    // Validate Twilio configuration before proceeding
-    const twilioConfig = TwilioService.validateConfiguration();
-    if (!twilioConfig.isValid) {
-      console.error(`Twilio configuration error: ${twilioConfig.message}`);
+    // Validate email service configuration before proceeding
+    const emailConfig = EmailService.validateConfiguration()
+    if (!emailConfig.isValid) {
+      console.error(`Email configuration warning: ${emailConfig.message}`)
       // Continue anyway for database-backed OTP
     }
 
     switch (action) {
       case "send-otp":
-        return await sendOTP(phoneNumber, channel)
+        return await sendEmailOTP(email)
       
       case "verify-otp":
-        return await verifyOTP(request, phoneNumber, otpCode)
+        return await verifyEmailOTP(request, email, code)
       
       case "cancel-verification":
-        return await cancelVerification(phoneNumber)
+        return await cancelEmailVerification(email)
       
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
   } catch (error: any) {
-    console.error("Mobile verification error:", error)
+    console.error("Email verification error:", error)
     return NextResponse.json({ 
       error: "Internal server error", 
       details: error.message || "Unknown error",
@@ -45,59 +45,56 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function sendOTP(phoneNumber: string, channel: 'sms' | 'whatsapp') {
-  if (!phoneNumber) {
-    return NextResponse.json({ error: "Phone number is required" }, { status: 400 })
+async function sendEmailOTP(email: string) {
+  if (!email) {
+    return NextResponse.json({ error: "Email is required" }, { status: 400 })
   }
-  // Validate Indian phone number format
-  if (!TwilioService.isValidIndianPhoneNumber(phoneNumber)) {
-    return NextResponse.json({ error: "Please enter a valid Indian mobile number" }, { status: 400 })
+  if (!EmailService.isValidEmail(email)) {
+    return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 })
   }
-  let firstName: string | undefined;
-  const session = await getServerSession(authOptions);
+  let firstName: string | undefined
+  const session = await getServerSession(authOptions)
   if (session?.user?.name) {
-    firstName = session.user.name.split(' ')[0];
+    firstName = session.user.name.split(' ')[0]
   } else {
     try {
-      await connectDB();
-      const customer = await Customer.findOne({ mobileNo: phoneNumber }).select('firstName');
-      const vendor = await Vendor.findOne({ mobileNo: phoneNumber }).select('firstName');
-      const admin = await Admin.findOne({ mobileNo: phoneNumber }).select('firstName');
-      if (customer) firstName = customer.firstName;
-      else if (vendor) firstName = vendor.firstName;
-      else if (admin) firstName = admin.firstName;
+      await connectDB()
+      const customer = await Customer.findOne({ email: email.toLowerCase() }).select('firstName')
+      const vendor = await Vendor.findOne({ email: email.toLowerCase() }).select('firstName')
+      const admin = await Admin.findOne({ email: email.toLowerCase() }).select('firstName')
+      if (customer) firstName = customer.firstName
+      else if (vendor) firstName = vendor.firstName
+      else if (admin) firstName = admin.firstName
     } catch (error) {
-      console.log('Error fetching user details:', error);
+      console.log('Error fetching user details:', error)
     }
   }
-  // Always use SMS for now
-  const actualChannel = 'sms';
-  // Generate and store OTP in DB, then send notification via Twilio
-  const result = await TwilioService.sendOTP(phoneNumber, actualChannel, firstName);
+  // Generate and store OTP in DB, then send notification via SendGrid
+  const result = await EmailService.sendOTP(email, firstName)
   if (result.success) {
     const response: any = {
       success: true,
       message: result.message,
-      channel: actualChannel
-    };
-    if (process.env.NODE_ENV === 'development' && result.otpCode) {
-      response.otpCode = result.otpCode;
+      provider: result.provider
     }
-    return NextResponse.json(response);
+    if (process.env.NODE_ENV === 'development' && result.otpCode) {
+      response.otpCode = result.otpCode
+    }
+    return NextResponse.json(response)
   } else {
-    return NextResponse.json({ error: result.message, details: result.error }, { status: 400 });
+    return NextResponse.json({ error: result.message, details: result.error }, { status: 400 })
   }
 }
 
-async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: string) {
-  if (!phoneNumber || !otpCode) {
+async function verifyEmailOTP(request: NextRequest, email: string, code: string) {
+  if (!email || !code) {
     return NextResponse.json({ 
-      error: "Phone number and OTP code are required" 
+      error: "Email and verification code are required" 
     }, { status: 400 })
   }
 
   // Verify OTP against our database
-  const result = await TwilioService.verifyOTP(phoneNumber, otpCode)
+  const result = await EmailService.verifyOTP(email, code)
 
   if (!result.success) {
     return NextResponse.json({
@@ -106,23 +103,26 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
     }, { status: 400 })
   }
 
-  // If user is logged in, update their phone verification status
+  // If user is logged in, update their email verification status
   const session = await getServerSession(authOptions) as { user: { id: string, role: string } } | null
   if (session) {
     try {
       await connectDB()
       
-      const formattedNumber = TwilioService.formatPhoneNumber(phoneNumber)
       let updateResult
+      const lowerEmail = email.toLowerCase()
 
       switch (session.user.role) {
         case "customer":
           updateResult = await Customer.findByIdAndUpdate(
             session.user.id,
             { 
-              phone: formattedNumber,
-              phoneVerified: true,
-              phoneVerifiedAt: new Date()
+              email: lowerEmail,
+              isEmailVerified: true,
+              emailVerifiedAt: new Date(),
+              emailVerificationToken: null,
+              emailVerificationCode: null,
+              emailVerificationExpiry: null
             },
             { new: true }
           )
@@ -132,9 +132,12 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
           updateResult = await Vendor.findByIdAndUpdate(
             session.user.id,
             { 
-              "contactInfo.phone": formattedNumber,
-              phoneVerified: true,
-              phoneVerifiedAt: new Date()
+              email: lowerEmail,
+              isEmailVerified: true,
+              emailVerifiedAt: new Date(),
+              emailVerificationToken: null,
+              emailVerificationCode: null,
+              emailVerificationExpiry: null
             },
             { new: true }
           )
@@ -144,9 +147,12 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
           updateResult = await Admin.findByIdAndUpdate(
             session.user.id,
             { 
-              phone: formattedNumber,
-              phoneVerified: true,
-              phoneVerifiedAt: new Date()
+              email: lowerEmail,
+              isEmailVerified: true,
+              emailVerifiedAt: new Date(),
+              emailVerificationToken: null,
+              emailVerificationCode: null,
+              emailVerificationExpiry: null
             },
             { new: true }
           )
@@ -156,8 +162,9 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
       if (updateResult) {
         return NextResponse.json({
           success: true,
-          message: "Phone number verified and updated successfully",
-          phoneVerified: true
+          message: "Email verified and updated successfully",
+          emailVerified: true,
+          role: session.user.role
         })
       }
     } catch (dbError) {
@@ -165,7 +172,7 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
       // Still return success for verification, but note DB issue
       return NextResponse.json({
         success: true,
-        message: "Phone number verified successfully",
+        message: "Email verified successfully",
         warning: "Profile update pending"
       })
     }
@@ -177,13 +184,13 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
   })
 }
 
-async function cancelVerification(phoneNumber: string) {
-  if (!phoneNumber) {
-    return NextResponse.json({ error: "Phone number is required" }, { status: 400 })
+async function cancelEmailVerification(email: string) {
+  if (!email) {
+    return NextResponse.json({ error: "Email is required" }, { status: 400 })
   }
 
-  // Clear any pending OTPs for this number from the database
-  const result = await TwilioService.cancelVerification(phoneNumber)
+  // Clear any pending OTPs for this email from the database
+  const result = await EmailService.cancelVerification(email)
 
   if (result.success) {
     return NextResponse.json({
@@ -209,9 +216,9 @@ export async function GET(request: NextRequest) {
 
     await connectDB()
 
-    let user;
-    const userId = session.user.id;
-    const userRole = session.user.role;
+    let user
+    const userId = session.user.id
+    const userRole = session.user.role
     
     if (!userId || !userRole) {
       return NextResponse.json({ error: "Invalid session data" }, { status: 400 })
@@ -219,13 +226,13 @@ export async function GET(request: NextRequest) {
 
     switch (userRole) {
       case "customer":
-        user = await Customer.findById(userId).select("phone phoneVerified phoneVerifiedAt")
+        user = await Customer.findById(userId).select("email isEmailVerified emailVerifiedAt")
         break
       case "vendor":
-        user = await Vendor.findById(userId).select("contactInfo.phone phoneVerified phoneVerifiedAt")
+        user = await Vendor.findById(userId).select("email isEmailVerified emailVerifiedAt")
         break
       case "admin":
-        user = await Admin.findById(userId).select("phone phoneVerified phoneVerifiedAt")
+        user = await Admin.findById(userId).select("email isEmailVerified emailVerifiedAt")
         break
       default:
         return NextResponse.json({ error: "Invalid user role" }, { status: 400 })
@@ -235,16 +242,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const phone = userRole === "vendor" ? user.contactInfo?.phone : user.phone
-
     return NextResponse.json({
-      phoneNumber: phone,
-      phoneVerified: user.phoneVerified || false,
-      phoneVerifiedAt: user.phoneVerifiedAt || null
+      email: user.email,
+      emailVerified: user.isEmailVerified || false,
+      emailVerifiedAt: user.emailVerifiedAt || null
     })
-
   } catch (error) {
-    console.error("Phone verification status error:", error)
+    console.error("Email verification status error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

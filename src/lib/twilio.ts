@@ -1,17 +1,24 @@
 import twilio from 'twilio';
 import { connectDB } from './database';
 import mongoose from 'mongoose';
+import { generateCustomerOTPSMS, type CustomerOTPSMSData } from '@/templates/sms/customer-sms-templates';
+import { generateVendorOTPSMS, type VendorOTPSMSData } from '@/templates/sms/vendor-sms-templates';
+import { generateAdminOTPSMS, type AdminOTPSMSData } from '@/templates/sms/admin-sms-templates';
 
+// Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
-const senderNumber = process.env.TWILIO_PHONE_NUMBER || "+917208179779" // Use env var or fallback
+const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
+const senderNumber = process.env.TWILIO_PHONE_NUMBER // Fallback if messaging service is not available
 
-// Define OTP Schema
+// Define OTP Schema with role support
 const OTPSchema = new mongoose.Schema({
   phoneNumber: { type: String, required: true, index: true },
   otpCode: { type: String, required: true },
   expiresAt: { type: Date, required: true },
   verified: { type: Boolean, default: false },
+  role: { type: String, enum: ['customer', 'vendor', 'admin'], required: true },
+  purpose: { type: String, enum: ['registration', 'login', 'password-reset', 'profile-update'], default: 'registration' },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -25,13 +32,16 @@ try {
 
 // Initialize Twilio client only if credentials are provided
 let client: any = null;
-if (accountSid && authToken) {
-  try {
+try {
+  if (accountSid && authToken) {
     client = twilio(accountSid, authToken);
-  } catch (error) {
-    console.error('Failed to initialize Twilio client:', error);
-    // Continue without Twilio client
+    console.log('Twilio client initialized successfully');
+  } else {
+    console.warn('Twilio credentials missing. SMS functionality will be disabled.');
   }
+} catch (error) {
+  console.error('Failed to initialize Twilio client:', error);
+  // Continue without Twilio client
 }
 
 export interface VerificationResult {
@@ -42,24 +52,39 @@ export interface VerificationResult {
   otpCode?: string // For development/testing environments
 }
 
+export type UserRole = 'customer' | 'vendor' | 'admin';
+export type SMSPurpose = 'registration' | 'login' | 'password-reset' | 'profile-update';
+
+export interface SMSOTPData {
+  phoneNumber: string;
+  firstName?: string;
+  role: UserRole;
+  purpose?: SMSPurpose;
+  channel?: 'sms' | 'whatsapp';
+}
+
 export class TwilioService {
-  static async sendOTP(phoneNumber: string, channel: 'sms' | 'whatsapp' = 'sms'): Promise<VerificationResult> {
+  /**
+   * Validate Twilio configuration
+   * @returns Object indicating if configuration is valid and error message if not
+   */
+  
+  
+  /**
+   * Generate and store OTP in DB, then send notification via Twilio (if configured)
+   */
+  static async sendOTP(phoneNumber: string, channel: 'sms' | 'whatsapp' = 'sms', firstName?: string): Promise<VerificationResult> {
     try {
-      // Format phone number to E.164 format if it's an Indian number
+      // Format phone number to E.164 format
       const formattedNumber = this.formatPhoneNumber(phoneNumber)
-      
       // Generate a 6-digit OTP
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString()
-      
       // Set expiration time (10 minutes)
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
-      
       // Connect to database and save OTP
       await connectDB()
-      
       // Clear any previous OTPs for this phone number
       await OTP.deleteMany({ phoneNumber: formattedNumber })
-      
       // Save new OTP to database
       await OTP.create({
         phoneNumber: formattedNumber,
@@ -67,39 +92,38 @@ export class TwilioService {
         expiresAt,
         verified: false
       })
-      
-      // Send OTP via SMS using Twilio
+      // Send notification via Twilio (if configured)
+      let notificationSent = false
       if (client) {
         try {
-          const message = await client.messages.create({
-            body: `Your verification code for ShopHub is ${otpCode}. Valid for 10 minutes. Do not share this code with anyone.`,
-            from: senderNumber,
-            to: formattedNumber
+          // Import SMS template from templates directory
+          const messageBody = getOtpVerificationTemplate({
+            code: otpCode,
+            firstName,
+            expiryMinutes: 10
           })
-          
-          console.log(`SMS sent to ${formattedNumber}, SID: ${message.sid}, Status: ${message.status}`);
-        } catch (twilioError: any) {
-          console.error('Failed to send via Twilio:', twilioError)
-          if (twilioError.code) {
-            console.error(`Twilio Error Code: ${twilioError.code}`)
+          const messageOptions: any = {
+            body: messageBody,
+            to: formattedNumber
           }
-          // Continue even if Twilio fails - we have the OTP in the database
+          if (messagingServiceSid) {
+            messageOptions.messagingServiceSid = messagingServiceSid
+          } else if (senderNumber) {
+            messageOptions.from = senderNumber
+          }
+          await client.messages.create(messageOptions)
+          notificationSent = true
+        } catch (twilioError: any) {
+          console.error('Twilio notification error:', twilioError)
         }
-      } else {
-        console.warn('Twilio client not initialized. Cannot send actual SMS.')
       }
-      
-      console.log(`OTP generated for ${formattedNumber}: ${otpCode}`);
-      
       // For development/testing environments, include the OTP in the response
-      // This should be removed in production
       const isDev = process.env.NODE_ENV === 'development'
-      
       return {
         success: true,
-        message: `OTP sent successfully via ${channel}`,
+        message: notificationSent ? `OTP sent via SMS` : `OTP generated and stored in DB`,
         status: 'pending',
-        ...(isDev && { otpCode }) // Only include OTP in development mode
+        ...(isDev && { otpCode })
       }
     } catch (error: any) {
       console.error('OTP generation error:', error)
@@ -283,33 +307,33 @@ export class TwilioService {
     return senderNumber
   }
 
-  // Method to validate Twilio configuration
+  /**
+   * Validate Twilio configuration
+   * @returns Object indicating if configuration is valid and error message if not
+   */
   static validateConfiguration(): { isValid: boolean; message: string } {
     if (!accountSid || !authToken) {
       return {
         isValid: false,
-        message: 'Missing Twilio Account SID or Auth Token'
-      }
+        message: "Twilio credentials are missing"
+      };
     }
-
-    if (!senderNumber) {
+    
+    if (!messagingServiceSid && !senderNumber) {
       return {
         isValid: false,
-        message: 'Missing Twilio sender phone number'
-      }
+        message: "Both messaging service SID and sender phone number are missing"
+      };
     }
-
+    
     if (!client) {
       return {
         isValid: false,
-        message: 'Twilio client not initialized'
-      }
+        message: "Twilio client initialization failed"
+      };
     }
-
-    return {
-      isValid: true,
-      message: 'Twilio SMS configured and ready'
-    }
+    
+    return { isValid: true, message: "Twilio configuration is valid" };
   }
 }
 

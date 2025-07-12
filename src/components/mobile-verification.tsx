@@ -41,6 +41,7 @@ export default function MobileVerification({
   const [timeLeft, setTimeLeft] = useState(0)
   const [canResend, setCanResend] = useState(true)
   const [verificationChannel, setVerificationChannel] = useState<"sms" | "whatsapp">("sms")
+  const [statusMessage, setStatusMessage] = useState("")
 
   // Check if phone is already verified on component mount
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function MobileVerification({
       const data = await response.json()
 
       if (response.ok) {
-        setSuccess(`OTP sent to your mobile via SMS`)
+        setSuccess(`OTP sent to ${phoneNumber} via SMS`)
         setStep("otp")
         setTimeLeft(60) // 60 seconds before allowing resend
         setCanResend(false)
@@ -131,6 +132,9 @@ export default function MobileVerification({
           setOtpCode(data.otpCode)
           console.log('[Dev Mode] Auto-filled OTP:', data.otpCode)
         }
+        
+        // Display a more visible message that we're waiting for the OTP
+        setStatusMessage(`Please check your phone for the verification code.`)
       } else {
         setError(data.error || "Failed to send OTP")
       }
@@ -168,11 +172,13 @@ export default function MobileVerification({
       if (response.ok) {
         setSuccess("Mobile number verified successfully!")
         setStep("verified")
+        setStatusMessage("") // Clear status message on success
         if (onVerificationComplete) {
           onVerificationComplete(phoneNumber)
         }
       } else {
         setError(data.error || "Invalid or expired OTP code. Please try again.")
+        setStatusMessage("Verification failed. Please check the code and try again.")
       }
     } catch (error) {
       console.error("Verification error:", error)
@@ -184,6 +190,7 @@ export default function MobileVerification({
 
   const resendOTP = async () => {
     if (!canResend) return
+    setStatusMessage("Resending verification code...")
     await sendOTP()
   }
 
@@ -192,6 +199,7 @@ export default function MobileVerification({
     setOtpCode("")
     setError("")
     setSuccess("")
+    setStatusMessage("")
   }
 
   if (compact && step === "verified") {
@@ -316,6 +324,12 @@ export default function MobileVerification({
               <p className="text-sm text-gray-600">
                 OTP sent to <strong>+91 {formatPhoneNumber(phoneNumber)}</strong>
               </p>
+              {statusMessage && (
+                <Badge variant="outline" className="flex items-center gap-1 mx-auto">
+                  <MessageSquare className="h-3 w-3" />
+                  {statusMessage}
+                </Badge>
+              )}
               <Button
                 variant="link"
                 onClick={changePhoneNumber}

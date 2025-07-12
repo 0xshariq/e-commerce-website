@@ -1,101 +1,97 @@
 "use client"
 
 import type React from "react"
-import type { Session } from "next-auth"
-
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
+import axios from "axios"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Upload, Package, Edit, Plus, Tag, TrendingUp, Trash2 } from "lucide-react"
+import { ArrowLeft, Upload, Package, Save, Eye, ImagePlus, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-
-interface Category {
-  _id: string
-  name: string
-  description: string
-}
+import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PRODUCT_CATEGORIES } from "@/models/product"
 
 interface Product {
-  _id: string
+  _id?: string
   productName: string
+  productDescription?: string
   productPrice: number
+  originalPrice?: number
+  discountPercentage?: number
   imageUrl: string
+  images?: string[]
   category: string
-  description: string
-}
-
-interface Coupon {
-  _id: string
-  code: string
-  discountType: "percentage" | "amount"
-  discountValue: number
-  expiryDate: string
-  isActive: boolean
-  description: string
-}
-
-interface Sale {
-  _id: string
-  saleId: string
-  saleStartingDate: string
-  saleEndingDate: string
-  amount: number
+  subcategory?: string
+  brand?: string
+  sku?: string
+  stockQuantity: number
+  minStockLevel?: number
+  weight?: number
+  dimensions?: {
+    length: number
+    width: number
+    height: number
+  }
+  tags?: string[]
+  specifications?: Record<string, any>
+  status: 'active' | 'inactive' | 'draft' | 'out-of-stock'
+  isPublished: boolean
+  isFeatured?: boolean
+  seoTitle?: string
+  seoDescription?: string
+  seoKeywords?: string[]
 }
 
 export default function CreateProductPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const editProductId = searchParams.get("edit")
+  const editProductId = searchParams.get("id")
   const isEditMode = !!editProductId
 
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(false)
-  const [coupons, setCoupons] = useState<Coupon[]>([])
-  const [sales, setSales] = useState<Sale[]>([])
-  const [editModalOpen, setEditModalOpen] = useState(false)
-  const [couponModalOpen, setCouponModalOpen] = useState(false)
-  const [saleModalOpen, setSaleModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState("basic")
+  const [tagInput, setTagInput] = useState("")
+  const [keywordInput, setKeywordInput] = useState("")
+  const [specKey, setSpecKey] = useState("")
+  const [specValue, setSpecValue] = useState("")
   
-  const [formData, setFormData] = useState({
+  const [productData, setProductData] = useState<Product>({
     productName: "",
-    productPrice: "",
+    productDescription: "",
+    productPrice: 0,
+    originalPrice: 0,
+    discountPercentage: 0,
     imageUrl: "",
+    images: [],
     category: "",
-    description: "",
-  })
-
-  const [couponData, setCouponData] = useState({
-    code: "",
-    discountType: "percentage" as "percentage" | "amount",
-    discountValue: "",
-    expiryDate: "",
-    description: "",
-    usageLimit: "1",
-    userLimit: "1",
-  })
-
-  const [saleData, setSaleData] = useState({
-    saleId: "",
-    saleStartingDate: "",
-    saleEndingDate: "",
-    amount: "",
+    subcategory: "",
+    brand: "",
+    sku: "",
+    stockQuantity: 0,
+    minStockLevel: 5,
+    weight: 0,
+    dimensions: {
+      length: 0,
+      width: 0,
+      height: 0,
+    },
+    tags: [],
+    specifications: {},
+    status: "draft",
+    isPublished: false,
+    isFeatured: false,
+    seoTitle: "",
+    seoDescription: "",
+    seoKeywords: [],
   })
 
   useEffect(() => {
@@ -109,628 +105,601 @@ export default function CreateProductPage() {
       return
     }
 
-    fetchCategories()
-    
     if (isEditMode && editProductId) {
       fetchProductData(editProductId)
-      fetchCoupons(editProductId)
-      fetchSales(editProductId)
     }
   }, [session, status, router, isEditMode, editProductId])
 
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch("/api/categories")
-      if (response.ok) {
-        const data = await response.json()
-        setCategories(data.categories)
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error)
-    }
-  }
-
   const fetchProductData = async (productId: string) => {
     try {
-      const response = await fetch(`/api/products/${productId}`)
-      if (response.ok) {
-        const data = await response.json()
-        const product = data.product
-        setFormData({
-          productName: product.productName,
-          productPrice: product.productPrice.toString(),
-          imageUrl: product.imageUrl,
-          category: product.category._id,
-          description: product.description || "",
-        })
+      setIsLoading(true)
+      const response = await axios.get(`/api/vendor/products/${productId}`)
+      if (response.data.product) {
+        setProductData(response.data.product)
       }
     } catch (error) {
       console.error("Error fetching product:", error)
-    }
-  }
-
-  const fetchCoupons = async (productId: string) => {
-    try {
-      const response = await fetch(`/api/products/${productId}/coupon`)
-      if (response.ok) {
-        const data = await response.json()
-        setCoupons(data.coupons)
-      }
-    } catch (error) {
-      console.error("Error fetching coupons:", error)
-    }
-  }
-
-  const fetchSales = async (productId: string) => {
-    try {
-      const response = await fetch(`/api/products/${productId}/sales`)
-      if (response.ok) {
-        const data = await response.json()
-        setSales(data.sales)
-      }
-    } catch (error) {
-      console.error("Error fetching sales:", error)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.productName || !formData.productPrice || !formData.imageUrl || !formData.category) {
-      toast.error("Please fill in all required fields")
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      const url = isEditMode ? `/api/products/${editProductId}` : "/api/products"
-      const method = isEditMode ? "PUT" : "POST"
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          productPrice: Number.parseFloat(formData.productPrice),
-        }),
-      })
-
-      if (response.ok) {
-        toast.success(isEditMode ? "Product updated successfully!" : "Product created successfully!")
-        router.push("/vendor/products")
-      } else {
-        const error = await response.json()
-        toast.error(error.error || `Failed to ${isEditMode ? "update" : "create"} product`)
-      }
-    } catch (error) {
-      toast.error(`Error ${isEditMode ? "updating" : "creating"} product`)
+      toast.error("Failed to fetch product data")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const handleCouponSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editProductId) return
+  const handleInputChange = (field: keyof Product, value: any) => {
+    setProductData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleDimensionsChange = (dimension: 'length' | 'width' | 'height', value: number) => {
+    setProductData(prev => ({
+      ...prev,
+      dimensions: {
+        ...prev.dimensions!,
+        [dimension]: value
+      }
+    }))
+  }
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
 
     try {
-      const response = await fetch(`/api/products/${editProductId}/coupon`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...couponData,
-          discountValue: Number.parseFloat(couponData.discountValue),
-          usageLimit: Number.parseInt(couponData.usageLimit),
-          userLimit: Number.parseInt(couponData.userLimit),
-        }),
-      })
-
-      if (response.ok) {
-        toast.success("Coupon created successfully!")
-        setCouponModalOpen(false)
-        fetchCoupons(editProductId)
-        setCouponData({
-          code: "",
-          discountType: "percentage",
-          discountValue: "",
-          expiryDate: "",
-          description: "",
-          usageLimit: "1",
-          userLimit: "1",
-        })
-      } else {
-        const error = await response.json()
-        toast.error(error.error || "Failed to create coupon")
-      }
+      setIsLoading(true)
+      const formData = new FormData()
+      formData.append('image', file)
+      
+      // For now, we'll use a placeholder URL. In real implementation,
+      // you would upload to your server or cloud storage
+      const imageUrl = URL.createObjectURL(file)
+      
+      handleInputChange('imageUrl', imageUrl)
+      toast.success("Image uploaded successfully")
     } catch (error) {
-      toast.error("Error creating coupon")
+      console.error("Error uploading image:", error)
+      toast.error("Failed to upload image")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleSaleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editProductId) return
+  const addTag = () => {
+    if (tagInput.trim() && !productData.tags?.includes(tagInput.trim())) {
+      handleInputChange('tags', [...(productData.tags || []), tagInput.trim()])
+      setTagInput("")
+    }
+  }
 
+  const removeTag = (tagToRemove: string) => {
+    handleInputChange('tags', productData.tags?.filter(tag => tag !== tagToRemove) || [])
+  }
+
+  const addKeyword = () => {
+    if (keywordInput.trim() && !productData.seoKeywords?.includes(keywordInput.trim())) {
+      handleInputChange('seoKeywords', [...(productData.seoKeywords || []), keywordInput.trim()])
+      setKeywordInput("")
+    }
+  }
+
+  const removeKeyword = (keywordToRemove: string) => {
+    handleInputChange('seoKeywords', productData.seoKeywords?.filter(keyword => keyword !== keywordToRemove) || [])
+  }
+
+  const addSpecification = () => {
+    if (specKey.trim() && specValue.trim()) {
+      handleInputChange('specifications', {
+        ...productData.specifications,
+        [specKey.trim()]: specValue.trim()
+      })
+      setSpecKey("")
+      setSpecValue("")
+    }
+  }
+
+  const removeSpecification = (keyToRemove: string) => {
+    const newSpecs = { ...productData.specifications }
+    delete newSpecs[keyToRemove]
+    handleInputChange('specifications', newSpecs)
+  }
+
+  const handleSubmit = async (isDraft = false) => {
     try {
-      const response = await fetch(`/api/products/${editProductId}/sales`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...saleData,
-          amount: Number.parseFloat(saleData.amount),
-        }),
-      })
+      setIsLoading(true)
 
-      if (response.ok) {
-        toast.success("Sale created successfully!")
-        setSaleModalOpen(false)
-        fetchSales(editProductId)
-        setSaleData({
-          saleId: "",
-          saleStartingDate: "",
-          saleEndingDate: "",
-          amount: "",
-        })
+      // Validation
+      if (!productData.productName.trim()) {
+        toast.error("Product name is required")
+        return
+      }
+      if (!productData.category) {
+        toast.error("Category is required")
+        return
+      }
+      if (productData.productPrice <= 0) {
+        toast.error("Valid product price is required")
+        return
+      }
+      if (productData.stockQuantity < 0) {
+        toast.error("Stock quantity cannot be negative")
+        return
+      }
+
+      const submitData = {
+        ...productData,
+        status: isDraft ? 'draft' : productData.status,
+        isPublished: !isDraft && productData.isPublished
+      }
+
+      if (isEditMode) {
+        await axios.put(`/api/vendor/products/${editProductId}`, submitData)
+        toast.success("Product updated successfully!")
       } else {
-        const error = await response.json()
-        toast.error(error.error || "Failed to create sale")
+        await axios.post("/api/products", submitData)
+        toast.success("Product created successfully!")
       }
-    } catch (error) {
-      toast.error("Error creating sale")
+
+      router.push("/vendor/products")
+    } catch (error: any) {
+      console.error("Error saving product:", error)
+      const errorMessage = error.response?.data?.error || "Failed to save product"
+      toast.error(errorMessage)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleDeleteProduct = async () => {
-    if (!editProductId) return
-
-    if (confirm("Are you sure you want to delete this product?")) {
-      try {
-        const response = await fetch(`/api/products/${editProductId}`, {
-          method: "DELETE",
-        })
-
-        if (response.ok) {
-          toast.success("Product deleted successfully!")
-          router.push("/vendor/products")
-        } else {
-          const error = await response.json()
-          toast.error(error.error || "Failed to delete product")
-        }
-      } catch (error) {
-        toast.error("Error deleting product")
-      }
-    }
-  }
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
-
-  const handleCouponInputChange = (field: string, value: string) => {
-    setCouponData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
-
-  const handleSaleInputChange = (field: string, value: string) => {
-    setSaleData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
+  if (status === "loading" || isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
+    <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/vendor/products">
-          <Button variant="outline" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Link href="/vendor/products">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Products
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold">
+              {isEditMode ? "Edit Product" : "Create New Product"}
+            </h1>
+            <p className="text-muted-foreground">
+              {isEditMode ? "Update your product details" : "Add a new product to your inventory"}
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={() => handleSubmit(true)}
+            disabled={isLoading}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Save as Draft
           </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            {isEditMode ? "Edit Product" : "Add New Product"}
-          </h1>
-          <p className="text-gray-600">
-            {isEditMode ? "Update your product details" : "Create a new product for your store"}
-          </p>
+          <Button 
+            onClick={() => handleSubmit(false)}
+            disabled={isLoading}
+          >
+            <Package className="h-4 w-4 mr-2" />
+            {isEditMode ? "Update Product" : "Create Product"}
+          </Button>
         </div>
       </div>
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Product Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Product Name */}
-              <div className="space-y-2">
-                <Label htmlFor="productName">Product Name *</Label>
-                <Input
-                  id="productName"
-                  placeholder="Enter product name"
-                  value={formData.productName}
-                  onChange={(e) => handleInputChange("productName", e.target.value)}
-                  required
-                />
+      {/* Form */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="basic">Basic Info</TabsTrigger>
+          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="seo">SEO & Marketing</TabsTrigger>
+        </TabsList>
+
+        {/* Basic Information */}
+        <TabsContent value="basic" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="productName">Product Name *</Label>
+                  <Input
+                    id="productName"
+                    value={productData.productName}
+                    onChange={(e) => handleInputChange('productName', e.target.value)}
+                    placeholder="Enter product name"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category *</Label>
+                  <Select 
+                    value={productData.category}
+                    onValueChange={(value) => handleInputChange('category', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRODUCT_CATEGORIES.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Price */}
-              <div className="space-y-2">
-                <Label htmlFor="productPrice">Price (₹) *</Label>
-                <Input
-                  id="productPrice"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.productPrice}
-                  onChange={(e) => handleInputChange("productPrice", e.target.value)}
-                  required
-                />
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="subcategory">Subcategory</Label>
+                  <Input
+                    id="subcategory"
+                    value={productData.subcategory || ""}
+                    onChange={(e) => handleInputChange('subcategory', e.target.value)}
+                    placeholder="Enter subcategory"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="brand">Brand</Label>
+                  <Input
+                    id="brand"
+                    value={productData.brand || ""}
+                    onChange={(e) => handleInputChange('brand', e.target.value)}
+                    placeholder="Enter brand name"
+                  />
+                </div>
               </div>
 
-              {/* Category */}
-              <div className="space-y-2">
-                <Label htmlFor="category">Category *</Label>
-                <Select value={formData.category} onValueChange={(value: string) => handleInputChange("category", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category._id} value={category._id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Image URL */}
-              <div className="space-y-2">
-                <Label htmlFor="imageUrl">Product Image URL *</Label>
-                <Input
-                  id="imageUrl"
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                  value={formData.imageUrl}
-                  onChange={(e) => handleInputChange("imageUrl", e.target.value)}
-                  required
-                />
-                {formData.imageUrl && (
-                  <div className="mt-2">
-                    <img
-                      src={formData.imageUrl || "/placeholder.svg"}
-                      alt="Product preview"
-                      className="w-32 h-32 object-cover rounded-md border"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none"
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
+                  value={productData.productDescription || ""}
+                  onChange={(e) => handleInputChange('productDescription', e.target.value)}
                   placeholder="Enter product description"
                   rows={4}
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
                 />
               </div>
 
-              {/* Submit Button */}
-              <div className="flex gap-4 pt-4">
-                <Button type="submit" disabled={loading} className="flex-1">
-                  {loading ? (
-                    <>
-                      <Upload className="w-4 h-4 mr-2 animate-spin" />
-                      {isEditMode ? "Updating..." : "Creating..."}
-                    </>
-                  ) : (
-                    <>
-                      <Package className="w-4 h-4 mr-2" />
-                      {isEditMode ? "Update Product" : "Create Product"}
-                    </>
+              <div className="space-y-2">
+                <Label htmlFor="image">Product Image</Label>
+                <div className="flex items-center space-x-4">
+                  <Input
+                    id="image"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="flex-1"
+                  />
+                  {productData.imageUrl && (
+                    <img 
+                      src={productData.imageUrl} 
+                      alt="Product preview" 
+                      className="h-16 w-16 object-cover rounded border"
+                    />
                   )}
-                </Button>
-                {isEditMode && (
-                  <Button type="button" variant="destructive" onClick={handleDeleteProduct}>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </Button>
-                )}
-                <Link href="/vendor/products">
-                  <Button type="button" variant="outline">
-                    Cancel
-                  </Button>
-                </Link>
+                </div>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        {/* Coupons and Sales Section - Only show in edit mode */}
-        {isEditMode && (
-          <>
-            {/* Coupons Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Tag className="w-5 h-5" />
-                    Coupons
-                  </div>
-                  <Dialog open={couponModalOpen} onOpenChange={setCouponModalOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Coupon
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Create New Coupon</DialogTitle>
-                        <DialogDescription>
-                          Add a discount coupon for this product
-                        </DialogDescription>
-                      </DialogHeader>
-                      <form onSubmit={handleCouponSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="couponCode">Coupon Code *</Label>
-                          <Input
-                            id="couponCode"
-                            placeholder="SAVE10"
-                            value={couponData.code}
-                            onChange={(e) => handleCouponInputChange("code", e.target.value.toUpperCase())}
-                            required
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Discount Type *</Label>
-                            <Select 
-                              value={couponData.discountType} 
-                              onValueChange={(value: "percentage" | "amount") => handleCouponInputChange("discountType", value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="percentage">Percentage</SelectItem>
-                                <SelectItem value="amount">Fixed Amount</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="discountValue">
-                              Discount Value * {couponData.discountType === "percentage" ? "(%)" : "(₹)"}
-                            </Label>
-                            <Input
-                              id="discountValue"
-                              type="number"
-                              min="0"
-                              max={couponData.discountType === "percentage" ? "100" : undefined}
-                              placeholder="10"
-                              value={couponData.discountValue}
-                              onChange={(e) => handleCouponInputChange("discountValue", e.target.value)}
-                              required
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="expiryDate">Expiry Date *</Label>
-                          <Input
-                            id="expiryDate"
-                            type="datetime-local"
-                            value={couponData.expiryDate}
-                            onChange={(e) => handleCouponInputChange("expiryDate", e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="usageLimit">Usage Limit *</Label>
-                            <Input
-                              id="usageLimit"
-                              type="number"
-                              min="1"
-                              placeholder="100"
-                              value={couponData.usageLimit}
-                              onChange={(e) => handleCouponInputChange("usageLimit", e.target.value)}
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="userLimit">Per User Limit *</Label>
-                            <Input
-                              id="userLimit"
-                              type="number"
-                              min="1"
-                              placeholder="1"
-                              value={couponData.userLimit}
-                              onChange={(e) => handleCouponInputChange("userLimit", e.target.value)}
-                              required
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="couponDescription">Description *</Label>
-                          <Textarea
-                            id="couponDescription"
-                            placeholder="Describe the coupon offer"
-                            value={couponData.description}
-                            onChange={(e) => handleCouponInputChange("description", e.target.value)}
-                            required
-                          />
-                        </div>
-                        <DialogFooter>
-                          <Button type="submit">Create Coupon</Button>
-                        </DialogFooter>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {coupons.length > 0 ? (
-                  <div className="space-y-3">
-                    {coupons.map((coupon) => (
-                      <div key={coupon._id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{coupon.code}</p>
-                            <p className="text-sm text-gray-600">{coupon.description}</p>
-                            <p className="text-sm text-gray-500">
-                              {coupon.discountType === "percentage" 
-                                ? `${coupon.discountValue}% off` 
-                                : `₹${coupon.discountValue} off`}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              Expires: {new Date(coupon.expiryDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className={`px-2 py-1 rounded text-xs ${
-                            coupon.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                          }`}>
-                            {coupon.isActive ? "Active" : "Inactive"}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-4">No coupons created yet</p>
-                )}
-              </CardContent>
-            </Card>
+        {/* Details */}
+        <TabsContent value="details" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Product Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="productPrice">Selling Price *</Label>
+                  <Input
+                    id="productPrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={productData.productPrice}
+                    onChange={(e) => handleInputChange('productPrice', parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="originalPrice">Original Price</Label>
+                  <Input
+                    id="originalPrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={productData.originalPrice || ""}
+                    onChange={(e) => handleInputChange('originalPrice', parseFloat(e.target.value) || undefined)}
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="discountPercentage">Discount %</Label>
+                  <Input
+                    id="discountPercentage"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={productData.discountPercentage || ""}
+                    onChange={(e) => handleInputChange('discountPercentage', parseFloat(e.target.value) || undefined)}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
 
-            {/* Sales Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5" />
-                    Sales
-                  </div>
-                  <Dialog open={saleModalOpen} onOpenChange={setSaleModalOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Sale
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Create New Sale</DialogTitle>
-                        <DialogDescription>
-                          Set up a sale period for this product
-                        </DialogDescription>
-                      </DialogHeader>
-                      <form onSubmit={handleSaleSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="saleId">Sale ID *</Label>
-                          <Input
-                            id="saleId"
-                            placeholder="SALE2024"
-                            value={saleData.saleId}
-                            onChange={(e) => handleSaleInputChange("saleId", e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="saleStartingDate">Start Date *</Label>
-                            <Input
-                              id="saleStartingDate"
-                              type="datetime-local"
-                              value={saleData.saleStartingDate}
-                              onChange={(e) => handleSaleInputChange("saleStartingDate", e.target.value)}
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="saleEndingDate">End Date *</Label>
-                            <Input
-                              id="saleEndingDate"
-                              type="datetime-local"
-                              value={saleData.saleEndingDate}
-                              onChange={(e) => handleSaleInputChange("saleEndingDate", e.target.value)}
-                              required
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="saleAmount">Sale Price (₹) *</Label>
-                          <Input
-                            id="saleAmount"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="999.00"
-                            value={saleData.amount}
-                            onChange={(e) => handleSaleInputChange("amount", e.target.value)}
-                            required
-                          />
-                        </div>
-                        <DialogFooter>
-                          <Button type="submit">Create Sale</Button>
-                        </DialogFooter>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {sales.length > 0 ? (
-                  <div className="space-y-3">
-                    {sales.map((sale) => (
-                      <div key={sale._id} className="p-3 border rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{sale.saleId}</p>
-                            <p className="text-sm text-gray-600">Sale Price: ₹{sale.amount}</p>
-                            <p className="text-xs text-gray-400">
-                              {new Date(sale.saleStartingDate).toLocaleDateString()} - {new Date(sale.saleEndingDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
-                            Active
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-4">No sales created yet</p>
-                )}
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="sku">SKU</Label>
+                  <Input
+                    id="sku"
+                    value={productData.sku || ""}
+                    onChange={(e) => handleInputChange('sku', e.target.value)}
+                    placeholder="Auto-generated if empty"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="weight">Weight (kg)</Label>
+                  <Input
+                    id="weight"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={productData.weight || ""}
+                    onChange={(e) => handleInputChange('weight', parseFloat(e.target.value) || undefined)}
+                    placeholder="0.0"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Dimensions (cm)</Label>
+                <div className="grid grid-cols-3 gap-4">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={productData.dimensions?.length || ""}
+                    onChange={(e) => handleDimensionsChange('length', parseFloat(e.target.value) || 0)}
+                    placeholder="Length"
+                  />
+                  <Input
+                    type="number"
+                    min="0"
+                    value={productData.dimensions?.width || ""}
+                    onChange={(e) => handleDimensionsChange('width', parseFloat(e.target.value) || 0)}
+                    placeholder="Width"
+                  />
+                  <Input
+                    type="number"
+                    min="0"
+                    value={productData.dimensions?.height || ""}
+                    onChange={(e) => handleDimensionsChange('height', parseFloat(e.target.value) || 0)}
+                    placeholder="Height"
+                  />
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <div className="flex space-x-2">
+                  <Input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    placeholder="Add a tag"
+                    onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                  />
+                  <Button type="button" onClick={addTag} size="sm">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {productData.tags?.map((tag, index) => (
+                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                      {tag}
+                      <X 
+                        className="h-3 w-3 cursor-pointer" 
+                        onClick={() => removeTag(tag)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Specifications */}
+              <div className="space-y-2">
+                <Label>Specifications</Label>
+                <div className="flex space-x-2">
+                  <Input
+                    value={specKey}
+                    onChange={(e) => setSpecKey(e.target.value)}
+                    placeholder="Specification name"
+                  />
+                  <Input
+                    value={specValue}
+                    onChange={(e) => setSpecValue(e.target.value)}
+                    placeholder="Specification value"
+                  />
+                  <Button type="button" onClick={addSpecification} size="sm">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {Object.entries(productData.specifications || {}).map(([key, value]) => (
+                    <div key={key} className="flex items-center justify-between p-2 bg-muted rounded">
+                      <span><strong>{key}:</strong> {value}</span>
+                      <X 
+                        className="h-4 w-4 cursor-pointer" 
+                        onClick={() => removeSpecification(key)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Inventory */}
+        <TabsContent value="inventory" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Inventory Management</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stockQuantity">Stock Quantity *</Label>
+                  <Input
+                    id="stockQuantity"
+                    type="number"
+                    min="0"
+                    value={productData.stockQuantity}
+                    onChange={(e) => handleInputChange('stockQuantity', parseInt(e.target.value) || 0)}
+                    placeholder="0"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="minStockLevel">Minimum Stock Level</Label>
+                  <Input
+                    id="minStockLevel"
+                    type="number"
+                    min="0"
+                    value={productData.minStockLevel || ""}
+                    onChange={(e) => handleInputChange('minStockLevel', parseInt(e.target.value) || undefined)}
+                    placeholder="5"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="status">Product Status</Label>
+                  <Select 
+                    value={productData.status}
+                    onValueChange={(value: any) => handleInputChange('status', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="isPublished"
+                    checked={productData.isPublished}
+                    onCheckedChange={(checked) => handleInputChange('isPublished', checked)}
+                  />
+                  <Label htmlFor="isPublished">Publish Product</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="isFeatured"
+                    checked={productData.isFeatured || false}
+                    onCheckedChange={(checked) => handleInputChange('isFeatured', checked)}
+                  />
+                  <Label htmlFor="isFeatured">Featured Product</Label>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* SEO & Marketing */}
+        <TabsContent value="seo" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>SEO & Marketing</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="seoTitle">SEO Title</Label>
+                <Input
+                  id="seoTitle"
+                  value={productData.seoTitle || ""}
+                  onChange={(e) => handleInputChange('seoTitle', e.target.value)}
+                  placeholder="SEO-friendly title (max 60 characters)"
+                  maxLength={60}
+                />
+                <p className="text-sm text-muted-foreground">
+                  {(productData.seoTitle || "").length}/60 characters
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="seoDescription">SEO Description</Label>
+                <Textarea
+                  id="seoDescription"
+                  value={productData.seoDescription || ""}
+                  onChange={(e) => handleInputChange('seoDescription', e.target.value)}
+                  placeholder="SEO-friendly description (max 160 characters)"
+                  maxLength={160}
+                  rows={3}
+                />
+                <p className="text-sm text-muted-foreground">
+                  {(productData.seoDescription || "").length}/160 characters
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>SEO Keywords</Label>
+                <div className="flex space-x-2">
+                  <Input
+                    value={keywordInput}
+                    onChange={(e) => setKeywordInput(e.target.value)}
+                    placeholder="Add SEO keyword"
+                    onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
+                  />
+                  <Button type="button" onClick={addKeyword} size="sm">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {productData.seoKeywords?.map((keyword, index) => (
+                    <Badge key={index} variant="outline" className="flex items-center gap-1">
+                      {keyword}
+                      <X 
+                        className="h-3 w-3 cursor-pointer" 
+                        onClick={() => removeKeyword(keyword)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

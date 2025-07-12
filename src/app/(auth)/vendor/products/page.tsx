@@ -16,14 +16,23 @@ import { toast } from "sonner"
 interface Product {
   _id: string
   productName: string
+  productDescription?: string
   productPrice: number
+  originalPrice?: number
+  discountPercentage?: number
   imageUrl: string
-  category: {
-    _id: string
-    name: string
-  }
+  category: string
+  subcategory?: string
+  brand?: string
+  sku?: string
+  stockQuantity: number
+  status: 'active' | 'inactive' | 'draft' | 'out-of-stock'
+  isPublished: boolean
+  isFeatured?: boolean
+  tags?: string[]
   createdAt: string
   updatedAt: string
+  totalSales?: number
 }
 
 export default function VendorProductsPage() {
@@ -85,11 +94,15 @@ export default function VendorProductsPage() {
   const filteredProducts = products.filter(
     (product) =>
       product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category.name.toLowerCase().includes(searchTerm.toLowerCase()),
+      product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.brand && product.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase())),
   )
 
   const totalProducts = products.length
-  const totalValue = products.reduce((sum, product) => sum + product.productPrice, 0)
+  const activeProducts = products.filter(p => p.status === 'active' && p.isPublished).length
+  const draftProducts = products.filter(p => p.status === 'draft').length
+  const lowStockProducts = products.filter(p => p.stockQuantity <= 5).length
 
   if (loading) {
     return (
@@ -123,7 +136,7 @@ export default function VendorProductsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Products</CardTitle>
@@ -131,28 +144,42 @@ export default function VendorProductsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalProducts}</div>
+            <p className="text-xs text-muted-foreground">All products</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Active Products</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{totalValue.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">{activeProducts}</div>
+            <p className="text-xs text-muted-foreground">Published & active</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Price</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Draft Products</CardTitle>
+            <Edit className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{totalProducts > 0 ? Math.round(totalValue / totalProducts) : 0}</div>
+            <div className="text-2xl font-bold text-orange-600">{draftProducts}</div>
+            <p className="text-xs text-muted-foreground">Not published</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
+            <Package className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{lowStockProducts}</div>
+            <p className="text-xs text-muted-foreground">≤ 5 items left</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Search */}
       {/* Search */}
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -226,11 +253,38 @@ export default function VendorProductsPage() {
               </div>
               <CardContent className="p-4">
                 <div className="space-y-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {product.category.name}
-                  </Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className="text-xs">
+                      {product.category}
+                    </Badge>
+                    <Badge 
+                      variant={product.status === 'active' ? 'default' : product.status === 'draft' ? 'secondary' : 'destructive'} 
+                      className="text-xs"
+                    >
+                      {product.status}
+                    </Badge>
+                    {product.isFeatured && (
+                      <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-600">
+                        Featured
+                      </Badge>
+                    )}
+                    {product.stockQuantity <= 5 && (
+                      <Badge variant="destructive" className="text-xs">
+                        Low Stock
+                      </Badge>
+                    )}
+                  </div>
                   <h3 className="font-semibold text-lg line-clamp-2">{product.productName}</h3>
-                  <p className="text-2xl font-bold text-green-600">₹{product.productPrice.toLocaleString()}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-2xl font-bold text-green-600">₹{product.productPrice.toLocaleString()}</p>
+                    {product.originalPrice && product.originalPrice > product.productPrice && (
+                      <p className="text-sm text-gray-500 line-through">₹{product.originalPrice.toLocaleString()}</p>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center text-sm text-gray-500">
+                    <span>Stock: {product.stockQuantity}</span>
+                    {product.sku && <span>SKU: {product.sku}</span>}
+                  </div>
                   <p className="text-sm text-gray-500">Added {new Date(product.createdAt).toLocaleDateString()}</p>
                 </div>
               </CardContent>

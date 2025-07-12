@@ -20,22 +20,18 @@ export async function GET(request: NextRequest) {
 
     await connectDB()
 
-    let user
-    let userModel
+    let profile
     const { id, role } = session.user
 
     switch (role) {
       case "customer":
-        user = await Customer.findById(id).select('-password')
-        userModel = Customer
+        profile = await Customer.findById(id).select('-password').lean()
         break
       case "vendor":
-        user = await Vendor.findById(id).select('-password')
-        userModel = Vendor
+        profile = await Vendor.findById(id).select('-password').lean()
         break
       case "admin":
-        user = await Admin.findById(id).select('-password')
-        userModel = Admin
+        profile = await Admin.findById(id).select('-password').lean()
         break
       default:
         return NextResponse.json(
@@ -44,17 +40,20 @@ export async function GET(request: NextRequest) {
         )
     }
 
-    if (!user) {
+    if (!profile) {
       return NextResponse.json(
-        { error: "User not found" },
+        { error: "Profile not found" },
         { status: 404, headers: getSecureHeaders() }
       )
     }
 
+    // Add role to profile response
+    profile.role = role
+
     return NextResponse.json(
       {
-        user: user.toObject(),
-        role
+        profile,
+        success: true
       },
       { status: 200, headers: getSecureHeaders() }
     )
@@ -84,21 +83,16 @@ export async function PUT(request: NextRequest) {
 
     await connectDB()
 
-    let user
-    let userModel
+    let updatedProfile
     let updateData: any = {}
 
-    // Common fields for all roles
-    if (body.firstName) updateData.firstName = sanitizeInput(body.firstName)
-    if (body.lastName) updateData.lastName = sanitizeInput(body.lastName)
-    if (body.email) updateData.email = sanitizeInput(body.email).toLowerCase()
-    if (body.mobileNo) updateData.mobileNo = sanitizeInput(body.mobileNo)
-
+    // Handle different user roles
     switch (role) {
       case "customer":
-        userModel = Customer
-        
         // Customer-specific fields
+        if (body.name) updateData.name = sanitizeInput(body.name)
+        if (body.email) updateData.email = sanitizeInput(body.email).toLowerCase()
+        if (body.mobileNo) updateData.mobileNo = sanitizeInput(body.mobileNo)
         if (body.dateOfBirth) updateData.dateOfBirth = new Date(body.dateOfBirth)
         if (body.gender) updateData.gender = sanitizeInput(body.gender)
         
@@ -119,35 +113,90 @@ export async function PUT(request: NextRequest) {
           }))
         }
 
-        // Update preferences if provided
-        if (body.preferences) {
-          updateData.preferences = {
-            ...updateData.preferences,
-            ...body.preferences
-          }
-        }
+        updatedProfile = await Customer.findByIdAndUpdate(
+          id,
+          updateData,
+          { new: true, runValidators: true }
+        ).select('-password').lean()
         break
 
       case "vendor":
-        userModel = Vendor
-        
         // Vendor-specific fields
-        if (body.alternatePhone) updateData.alternatePhone = sanitizeInput(body.alternatePhone)
+        if (body.name) updateData.name = sanitizeInput(body.name)
+        if (body.email) updateData.email = sanitizeInput(body.email).toLowerCase()
+        if (body.mobileNo) updateData.mobileNo = sanitizeInput(body.mobileNo)
+        if (body.businessName) updateData.businessName = sanitizeInput(body.businessName)
+        if (body.businessType) updateData.businessType = sanitizeInput(body.businessType)
+        if (body.businessDescription) updateData.businessDescription = sanitizeInput(body.businessDescription)
+        if (body.gstNumber) updateData.gstNumber = sanitizeInput(body.gstNumber.toUpperCase())
+        if (body.panNumber) updateData.panNumber = sanitizeInput(body.panNumber.toUpperCase())
+        if (body.upiId) updateData.upiId = sanitizeInput(body.upiId)
         
-        // Update business info if provided
-        if (body.businessInfo) {
-          updateData.businessInfo = {
-            businessName: body.businessInfo.businessName ? sanitizeInput(body.businessInfo.businessName) : undefined,
-            businessType: body.businessInfo.businessType ? sanitizeInput(body.businessInfo.businessType) : undefined,
-            businessCategory: body.businessInfo.businessCategory ? sanitizeInput(body.businessInfo.businessCategory) : undefined,
-            panNumber: body.businessInfo.panNumber ? sanitizeInput(body.businessInfo.panNumber.toUpperCase()) : undefined,
-            gstNumber: body.businessInfo.gstNumber ? sanitizeInput(body.businessInfo.gstNumber.toUpperCase()) : undefined,
-            businessEmail: body.businessInfo.businessEmail ? sanitizeInput(body.businessInfo.businessEmail).toLowerCase() : undefined,
-            businessPhone: body.businessInfo.businessPhone ? sanitizeInput(body.businessInfo.businessPhone) : undefined,
-            businessRegistrationNumber: body.businessInfo.businessRegistrationNumber ? sanitizeInput(body.businessInfo.businessRegistrationNumber) : undefined,
-            yearEstablished: body.businessInfo.yearEstablished ? parseInt(body.businessInfo.yearEstablished) : undefined,
+        // Handle nested address object
+        if (body.address) {
+          updateData.address = {
+            street: body.address.street ? sanitizeInput(body.address.street) : '',
+            city: body.address.city ? sanitizeInput(body.address.city) : '',
+            state: body.address.state ? sanitizeInput(body.address.state) : '',
+            zipCode: body.address.zipCode ? sanitizeInput(body.address.zipCode) : '',
+            country: body.address.country ? sanitizeInput(body.address.country) : 'India'
           }
         }
+
+        // Handle nested bank details object
+        if (body.bankDetails) {
+          updateData.bankDetails = {
+            accountNumber: body.bankDetails.accountNumber ? sanitizeInput(body.bankDetails.accountNumber) : '',
+            ifscCode: body.bankDetails.ifscCode ? sanitizeInput(body.bankDetails.ifscCode.toUpperCase()) : '',
+            bankName: body.bankDetails.bankName ? sanitizeInput(body.bankDetails.bankName) : '',
+            accountHolderName: body.bankDetails.accountHolderName ? sanitizeInput(body.bankDetails.accountHolderName) : ''
+          }
+        }
+
+        updatedProfile = await Vendor.findByIdAndUpdate(
+          id,
+          updateData,
+          { new: true, runValidators: true }
+        ).select('-password').lean()
+        break
+
+      case "admin":
+        if (body.name) updateData.name = sanitizeInput(body.name)
+        if (body.email) updateData.email = sanitizeInput(body.email).toLowerCase()
+        if (body.mobileNo) updateData.mobileNo = sanitizeInput(body.mobileNo)
+
+        updatedProfile = await Admin.findByIdAndUpdate(
+          id,
+          updateData,
+          { new: true, runValidators: true }
+        ).select('-password').lean()
+        break
+
+      default:
+        return NextResponse.json(
+          { error: "Invalid user role" },
+          { status: 400, headers: getSecureHeaders() }
+        )
+    }
+
+    if (!updatedProfile) {
+      return NextResponse.json(
+        { error: "Profile not found" },
+        { status: 404, headers: getSecureHeaders() }
+      )
+    }
+
+    // Add role to response
+    updatedProfile.role = role
+
+    return NextResponse.json(
+      {
+        profile: updatedProfile,
+        success: true,
+        message: "Profile updated successfully"
+      },
+      { status: 200, headers: getSecureHeaders() }
+    )
 
         // Update addresses if provided
         if (body.addresses && Array.isArray(body.addresses)) {

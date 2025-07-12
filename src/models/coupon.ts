@@ -14,6 +14,7 @@ export interface ICoupon extends Document {
   usedCount: number // times coupon has been used
   userLimit: number // max times per user
   description: string
+  couponType: "normal" | "special" // Only special coupons have userLimit enforcement
   createdAt: Date
   updatedAt: Date
   productId: mongoose.Types.ObjectId // Reference to Product model
@@ -85,7 +86,10 @@ const CouponSchema = new Schema<ICoupon>(
     },
     userLimit: {
       type: Number,
-      required: [true, "User limit is required"],
+      required: function(this: ICoupon) {
+        // Only required for special coupons
+        return this.couponType === 'special';
+      },
       min: [1, "User limit must be at least 1"],
       default: 1,
     },
@@ -94,6 +98,15 @@ const CouponSchema = new Schema<ICoupon>(
       required: [true, "Description is required"],
       trim: true,
       maxlength: [200, "Description cannot exceed 200 characters"],
+    },
+    couponType: {
+      type: String,
+      enum: {
+        values: ["normal", "special"],
+        message: "Coupon type must be either 'normal' or 'special'",
+      },
+      required: [true, "Coupon type is required"],
+      default: "normal",
     },
   },
   {
@@ -190,8 +203,11 @@ const CouponZodObject = z.object({
   isActive: z.boolean().default(true),
   usageLimit: z.number().min(1, "Usage limit must be at least 1"),
   usedCount: z.number().min(0, "Used count cannot be negative").default(0),
-  userLimit: z.number().min(1, "User limit must be at least 1").default(1),
+  userLimit: z.number().min(1, "User limit must be at least 1").default(1).optional(),
   description: z.string().max(200, "Description cannot exceed 200 characters").trim(),
+  couponType: z.enum(["normal", "special"], {
+    errorMap: () => ({ message: "Coupon type must be either 'normal' or 'special'" }),
+  }).default("normal"),
 })
 
 export const CouponZodSchema = CouponZodObject

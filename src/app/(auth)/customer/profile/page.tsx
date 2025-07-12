@@ -3,7 +3,14 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +21,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import EmailVerification from "@/components/email-verification";
+import MobileVerification from "@/components/mobile-verification";
 import {
   User,
   Edit,
@@ -31,6 +46,9 @@ import {
   Star,
   Heart,
   ShoppingCart,
+  Settings,
+  Bell,
+  CreditCard,
 } from "lucide-react";
 import { formatDate, formatNumber } from "@/utils/formatting";
 import { format } from "date-fns";
@@ -76,6 +94,7 @@ export default function CustomerProfilePage() {
   const [success, setSuccess] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>();
+  const [activeTab, setActiveTab] = useState("profile");
 
   // Redirect if not authenticated or not a customer
   useEffect(() => {
@@ -197,10 +216,10 @@ export default function CustomerProfilePage() {
         {/* Header */}
         <div className="mb-6 lg:mb-8">
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
-            Profile Settings
+            My Account
           </h1>
           <p className="text-gray-600 text-sm sm:text-base">
-            Manage your account information and preferences
+            Manage your profile, orders, and preferences
           </p>
         </div>
 
@@ -219,7 +238,7 @@ export default function CustomerProfilePage() {
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
           {/* Profile Card */}
           <Card className="lg:col-span-1">
             <CardHeader className="text-center pb-4">
@@ -258,285 +277,515 @@ export default function CustomerProfilePage() {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                onClick={() => setIsEditing(!isEditing)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-sm"
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                {isEditing ? "Cancel Edit" : "Edit Profile"}
-              </Button>
-              {profile.stats && (
-                <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="text-lg font-bold text-blue-600">
-                      {formatNumber(profile.stats.totalOrders)}
-                    </div>
-                    <div className="text-xs text-gray-600">Orders</div>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="text-lg font-bold text-green-600">
-                      {formatNumber(profile.stats.reviewsGiven)}
-                    </div>
-                    <div className="text-xs text-gray-600">Reviews</div>
-                  </div>
-                </div>
-              )}
+            <CardContent>
+              <nav className="space-y-2">
+                <Button
+                  variant={activeTab === "profile" ? "default" : "ghost"}
+                  className="w-full justify-start text-sm"
+                  onClick={() => setActiveTab("profile")}
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Profile
+                </Button>
+                <Button
+                  variant={activeTab === "verification" ? "default" : "ghost"}
+                  className="w-full justify-start text-sm"
+                  onClick={() => setActiveTab("verification")}
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Verification
+                </Button>
+                <Button
+                  variant={activeTab === "settings" ? "default" : "ghost"}
+                  className="w-full justify-start text-sm"
+                  onClick={() => setActiveTab("settings")}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </Button>
+                <Button
+                  variant={activeTab === "orders" ? "default" : "ghost"}
+                  className="w-full justify-start text-sm" 
+                  onClick={() => setActiveTab("orders")}
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  Orders
+                </Button>
+                <Button
+                  variant={activeTab === "payment" ? "default" : "ghost"}
+                  className="w-full justify-start text-sm"
+                  onClick={() => setActiveTab("payment")}
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Payment Methods
+                </Button>
+                <Separator className="my-3" />
+                <Link href="/products" passHref>
+                  <Button variant="outline" className="w-full text-sm">
+                    Continue Shopping
+                  </Button>
+                </Link>
+              </nav>
             </CardContent>
           </Card>
 
-          {/* Account Information */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg sm:text-xl">Account Information</CardTitle>
-                <CardDescription className="text-sm">
-                  Update your personal details
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-medium">
-                      Full Name
-                    </Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                      <Input
-                        id="name"
-                        value={profile.name || ""}
-                        onChange={(e) => handleInputChange("name", e.target.value)}
-                        className="pl-10"
-                        disabled={!isEditing}
-                      />
+          {/* Main Content */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Profile Tab */}
+            {activeTab === "profile" && (
+              <>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <div>
+                      <CardTitle className="text-lg sm:text-xl">Personal Information</CardTitle>
+                      <CardDescription className="text-sm">Update your personal details</CardDescription>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium">
-                      Email Address
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                      <Input
-                        id="email"
-                        type="email"
-                        value={profile.email || ""}
-                        className="pl-10 bg-gray-50"
-                        disabled
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="mobile" className="text-sm font-medium">
-                      Mobile Number
-                    </Label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                      <Input
-                        id="mobile"
-                        type="tel"
-                        value={profile.mobileNo || ""}
-                        onChange={(e) => handleInputChange("mobileNo", e.target.value)}
-                        className="pl-10"
-                        disabled={!isEditing}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Date of Birth</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                          disabled={!isEditing}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {selectedDate ? format(selectedDate, "PPP") : "Select date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={setSelectedDate}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                {/* Address */}
-                {profile.address && (
-                  <div className="space-y-4">
-                    <Label className="text-sm font-medium">Address</Label>
+                    <Button
+                      variant={isEditing ? "destructive" : "outline"}
+                      size="sm"
+                      onClick={() => setIsEditing(!isEditing)}
+                    >
+                      {isEditing ? "Cancel" : "Edit Profile"}
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="sm:col-span-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="name" className="text-sm font-medium">
+                          Full Name
+                        </Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                          <Input
+                            id="name"
+                            value={profile.name || ""}
+                            onChange={(e) => handleInputChange("name", e.target.value)}
+                            className="pl-10"
+                            disabled={!isEditing}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="email" className="text-sm font-medium">
+                          Email Address
+                        </Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                          <Input
+                            id="email"
+                            type="email"
+                            value={profile.email || ""}
+                            className="pl-10 bg-gray-50"
+                            disabled
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="mobile" className="text-sm font-medium">
+                          Mobile Number
+                        </Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                          <Input
+                            id="mobile"
+                            type="tel"
+                            value={profile.mobileNo || ""}
+                            onChange={(e) => handleInputChange("mobileNo", e.target.value)}
+                            className="pl-10"
+                            disabled={!isEditing}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Date of Birth</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal"
+                              disabled={!isEditing}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {selectedDate ? format(selectedDate, "PPP") : "Select date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={selectedDate}
+                              onSelect={setSelectedDate}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Shipping Address</Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="sm:col-span-2">
+                          <Input
+                            placeholder="Street Address"
+                            value={profile.address?.street || ""}
+                            onChange={(e) => handleInputChange("address.street", e.target.value)}
+                            disabled={!isEditing}
+                          />
+                        </div>
                         <Input
-                          placeholder="Street Address"
-                          value={profile.address.street || ""}
-                          onChange={(e) => handleInputChange("address.street", e.target.value)}
+                          placeholder="City"
+                          value={profile.address?.city || ""}
+                          onChange={(e) => handleInputChange("address.city", e.target.value)}
+                          disabled={!isEditing}
+                        />
+                        <Input
+                          placeholder="State"
+                          value={profile.address?.state || ""}
+                          onChange={(e) => handleInputChange("address.state", e.target.value)}
+                          disabled={!isEditing}
+                        />
+                        <Input
+                          placeholder="ZIP Code"
+                          value={profile.address?.zipCode || ""}
+                          onChange={(e) => handleInputChange("address.zipCode", e.target.value)}
+                          disabled={!isEditing}
+                        />
+                        <Input
+                          placeholder="Country"
+                          value={profile.address?.country || ""}
+                          onChange={(e) => handleInputChange("address.country", e.target.value)}
                           disabled={!isEditing}
                         />
                       </div>
-                      <Input
-                        placeholder="City"
-                        value={profile.address.city || ""}
-                        onChange={(e) => handleInputChange("address.city", e.target.value)}
-                        disabled={!isEditing}
-                      />
-                      <Input
-                        placeholder="State"
-                        value={profile.address.state || ""}
-                        onChange={(e) => handleInputChange("address.state", e.target.value)}
-                        disabled={!isEditing}
-                      />
-                      <Input
-                        placeholder="ZIP Code"
-                        value={profile.address.zipCode || ""}
-                        onChange={(e) => handleInputChange("address.zipCode", e.target.value)}
-                        disabled={!isEditing}
-                      />
-                      <Input
-                        placeholder="Country"
-                        value={profile.address.country || ""}
-                        onChange={(e) => handleInputChange("address.country", e.target.value)}
-                        disabled={!isEditing}
-                      />
                     </div>
-                  </div>
-                )}
 
-                {isEditing && (
-                  <Button
-                    onClick={handleSaveProfile}
-                    disabled={saving}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Changes
-                      </>
+                    {isEditing && (
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={saving}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          {saving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
 
-            {/* Account Statistics */}
-            {profile.stats && (
+                {/* Stats Card */}
+                {profile.stats && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg sm:text-xl">Account Overview</CardTitle>
+                      <CardDescription className="text-sm">Your recent activity and statistics</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="text-center bg-blue-50 rounded-lg p-4">
+                          <Package className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+                          <div className="text-xl sm:text-2xl font-bold text-blue-600">
+                            {formatNumber(profile.stats.totalOrders)}
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600">Total Orders</div>
+                        </div>
+                        <div className="text-center bg-green-50 rounded-lg p-4">
+                          <CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                          <div className="text-xl sm:text-2xl font-bold text-green-600">
+                            {formatNumber(profile.stats.completedOrders)}
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600">Completed</div>
+                        </div>
+                        <div className="text-center bg-yellow-50 rounded-lg p-4">
+                          <ShoppingCart className="h-6 w-6 text-yellow-600 mx-auto mb-2" />
+                          <div className="text-xl sm:text-2xl font-bold text-yellow-600">
+                            {formatNumber(profile.stats.pendingOrders)}
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600">Pending</div>
+                        </div>
+                        <div className="text-center bg-purple-50 rounded-lg p-4">
+                          <Heart className="h-6 w-6 text-purple-600 mx-auto mb-2" />
+                          <div className="text-xl sm:text-2xl font-bold text-purple-600">
+                            {formatNumber(profile.stats.wishlistItems)}
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600">Wishlist</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+
+            {/* Verification Tab */}
+            {activeTab === "verification" && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg sm:text-xl">Account Statistics</CardTitle>
-                  <CardDescription className="text-sm">Your activity summary</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                    <Shield className="h-5 w-5" />
+                    Account Verification
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    Verify your contact details to secure your account and unlock all features
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="text-center bg-blue-50 rounded-lg p-4">
-                      <Package className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                      <div className="text-xl sm:text-2xl font-bold text-blue-600">
-                        {formatNumber(profile.stats.totalOrders)}
+                <CardContent className="space-y-6">
+                  {/* Email Verification */}
+                  <div className="space-y-3">
+                    <h3 className="font-medium flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Email Verification
+                    </h3>
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{profile.email}</p>
+                          <p className="text-xs text-gray-500">Your primary email address</p>
+                        </div>
+                        {profile.isEmailVerified ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Verified
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-yellow-500 text-yellow-600">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Unverified
+                          </Badge>
+                        )}
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600">Total Orders</div>
+                      
+                      {!profile.isEmailVerified && (
+                        <div className="border-t border-gray-200 pt-3">
+                          <EmailVerification 
+                            initialEmail={profile.email}
+                            showTitle={false}
+                            compact={true}
+                            onVerificationComplete={() => fetchProfile()}
+                          />
+                        </div>
+                      )}
                     </div>
-                    <div className="text-center bg-green-50 rounded-lg p-4">
-                      <CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                      <div className="text-xl sm:text-2xl font-bold text-green-600">
-                        {formatNumber(profile.stats.completedOrders)}
+                  </div>
+                  
+                  {/* Mobile Verification */}
+                  <div className="space-y-3">
+                    <h3 className="font-medium flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Mobile Verification
+                    </h3>
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{profile.mobileNo || "No mobile number"}</p>
+                          <p className="text-xs text-gray-500">Your contact number for order updates</p>
+                        </div>
+                        {profile.isMobileVerified ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Verified
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-yellow-500 text-yellow-600">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Unverified
+                          </Badge>
+                        )}
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600">Completed</div>
+                      
+                      {!profile.isMobileVerified && (
+                        <div className="border-t border-gray-200 pt-3">
+                          <MobileVerification
+                            initialPhoneNumber={profile.mobileNo || ""}
+                            showTitle={false}
+                            compact={true}
+                            onVerificationComplete={() => fetchProfile()}
+                          />
+                        </div>
+                      )}
                     </div>
-                    <div className="text-center bg-yellow-50 rounded-lg p-4">
-                      <ShoppingCart className="h-6 w-6 text-yellow-600 mx-auto mb-2" />
-                      <div className="text-xl sm:text-2xl font-bold text-yellow-600">
-                        {formatNumber(profile.stats.pendingOrders)}
+                  </div>
+                  
+                  {/* Security Note */}
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <Shield className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800 text-sm">
+                      Verifying both email and mobile number helps protect your account from unauthorized access
+                      and ensures you receive important notifications about your orders and account.
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Settings Tab */}
+            {activeTab === "settings" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                    <Settings className="h-5 w-5" />
+                    Account Settings
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    Manage your preferences and security settings
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Notification Preferences */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium flex items-center gap-2">
+                      <Bell className="h-4 w-4" />
+                      Notification Preferences
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Email Notifications</p>
+                          <p className="text-xs text-gray-500">Receive order updates and promotions</p>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => 
+                            handleInputChange("preferences.newsletter", 
+                            profile.preferences?.newsletter ? false : true)}
+                        >
+                          {profile.preferences?.newsletter ? "Disable" : "Enable"}
+                        </Button>
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600">Pending</div>
-                    </div>
-                    <div className="text-center bg-red-50 rounded-lg p-4">
-                      <AlertCircle className="h-6 w-6 text-red-600 mx-auto mb-2" />
-                      <div className="text-xl sm:text-2xl font-bold text-red-600">
-                        {formatNumber(profile.stats.cancelledOrders)}
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">SMS Notifications</p>
+                          <p className="text-xs text-gray-500">Get order status via text message</p>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => 
+                            handleInputChange("preferences.notifications", 
+                            profile.preferences?.notifications ? false : true)}
+                        >
+                          {profile.preferences?.notifications ? "Disable" : "Enable"}
+                        </Button>
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600">Cancelled</div>
                     </div>
                   </div>
 
-                  <Separator className="my-4" />
+                  <Separator />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="text-center bg-purple-50 rounded-lg p-4">
-                      <div className="text-xl sm:text-2xl font-bold text-purple-600">
-                        ₹{formatNumber(profile.stats.totalSpent)}
+                  {/* Security Settings */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Security
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Password</p>
+                          <p className="text-xs text-gray-500">Update your account password</p>
+                        </div>
+                        <Button variant="outline" size="sm">Change Password</Button>
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600">Total Spent</div>
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Two-Factor Authentication</p>
+                          <p className="text-xs text-gray-500">Add an extra layer of security</p>
+                        </div>
+                        <Button variant="outline" size="sm">Enable 2FA</Button>
+                      </div>
                     </div>
-                    <div className="text-center bg-pink-50 rounded-lg p-4">
-                      <Heart className="h-6 w-6 text-pink-600 mx-auto mb-2" />
-                      <div className="text-xl sm:text-2xl font-bold text-pink-600">
-                        {formatNumber(profile.stats.wishlistItems)}
+                  </div>
+
+                  <Separator />
+                  
+                  {/* Account Actions */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-red-600 flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      Account Actions
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Delete Account</p>
+                          <p className="text-xs text-gray-500">Permanently remove your account and all data</p>
+                        </div>
+                        <Button variant="destructive" size="sm">Delete Account</Button>
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600">Wishlist Items</div>
-                    </div>
-                    <div className="text-center bg-orange-50 rounded-lg p-4">
-                      <Star className="h-6 w-6 text-orange-600 mx-auto mb-2" />
-                      <div className="text-xl sm:text-2xl font-bold text-orange-600">
-                        {formatNumber(profile.stats.reviewsGiven)}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-600">Reviews Given</div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Security Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <Shield className="h-5 w-5" />
-                  Security Settings
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  Manage your account security
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-sm sm:text-base">Password</p>
-                    <p className="text-xs sm:text-sm text-gray-600">
-                      Keep your account secure with a strong password
+            {/* Orders Tab */}
+            {activeTab === "orders" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                    <Package className="h-5 w-5" />
+                    Your Orders
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    View and manage your order history
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <h3 className="text-lg font-medium text-gray-500">No Recent Orders</h3>
+                    <p className="text-sm text-gray-500 mt-1 mb-4">
+                      You haven't placed any orders yet
                     </p>
+                    <Link href="/products" passHref>
+                      <Button>Start Shopping</Button>
+                    </Link>
                   </div>
-                  <Button variant="outline" className="text-sm">
-                    Change Password
-                  </Button>
-                </div>
-                <Separator />
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-sm sm:text-base">Two-Factor Authentication</p>
-                    <p className="text-xs sm:text-sm text-gray-600">
-                      Add an extra layer of security to your account
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Payment Tab */}
+            {activeTab === "payment" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                    <CreditCard className="h-5 w-5" />
+                    Payment Methods
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    Manage your payment options
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8">
+                    <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <h3 className="text-lg font-medium text-gray-500">No Saved Payment Methods</h3>
+                    <p className="text-sm text-gray-500 mt-1 mb-4">
+                      Add a payment method for faster checkout
                     </p>
+                    <Button>Add Payment Method</Button>
                   </div>
-                  <Button variant="outline" className="text-sm">
-                    Enable 2FA
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

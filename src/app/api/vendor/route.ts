@@ -16,8 +16,6 @@ declare module "next-auth" {
       role: string
       isAdmin: boolean
       mobileNo: string
-      shopAddress: string
-      upiId: string
       isSuspended: boolean
       isApproved: boolean
     }

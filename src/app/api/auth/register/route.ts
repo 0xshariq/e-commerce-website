@@ -14,9 +14,7 @@ import {
   validateMobileNumber,
   validatePAN,
   validateGST,
-  validateUPI,
-  validatePostalCode,
-  getSecureHeaders
+  validateUPI
 } from "@/utils/auth"
 import { processProfileImageUpload } from "@/utils/upload"
 

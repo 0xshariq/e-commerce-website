@@ -197,25 +197,50 @@ export const authOptions = {
         await dbConnect()
 
         // Check if user already exists
-        let existingUser = await Customer.findOne({ email: profile.email })
+        let existingUser = await Customer.findOne({ 
+          $or: [
+            { email: profile.email },
+            { oauthId: profile.sub, oauthProvider: 'google' }
+          ]
+        })
 
         if (!existingUser) {
+          // Extract first and last names from profile
+          const firstName = profile.given_name || profile.name?.split(' ')[0] || '';
+          const lastName = profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '';
+          
           // Create new customer account for Google users
           existingUser = await Customer.create({
-            name: profile.name,
+            firstName,
+            lastName,
             email: profile.email,
-            password: await bcrypt.hash(Math.random().toString(36), 12), // Random password
-            mobileNo: "", // Will be updated later
-            productsPurchased: [],
+            password: await bcrypt.hash(Math.random().toString(36), 12), // Random password for OAuth users
+            mobileNo: null, // Will be updated later in profile
             profileImage: profile.picture,
+            isOAuthUser: true,
+            oauthProvider: 'google',
+            oauthId: profile.sub,
+            isEmailVerified: profile.email_verified || false
           })
+        } else if (!existingUser.isOAuthUser) {
+          // Update existing customer to include OAuth info
+          existingUser.isOAuthUser = true;
+          existingUser.oauthProvider = 'google';
+          existingUser.oauthId = profile.sub;
+          existingUser.isEmailVerified = profile.email_verified || existingUser.isEmailVerified;
+          if (profile.picture) existingUser.profileImage = profile.picture;
+          await existingUser.save();
         }
+
+        const displayName = existingUser.firstName && existingUser.lastName 
+          ? `${existingUser.firstName} ${existingUser.lastName}`
+          : profile.name || existingUser.email.split('@')[0];
 
         return {
           id: existingUser._id?.toString() || "",
-          name: profile.name || "",
+          name: displayName,
           email: profile.email || "",
-          image: profile.picture || "",
+          image: profile.picture || existingUser.profileImage || "",
           role: "customer",
           isAdmin: false,
           mobileNo: existingUser.mobileNo || "",

@@ -27,6 +27,11 @@ async function connectDB(): Promise<typeof mongoose> {
   }
 
   try {
+    // Disconnect any existing connections first
+    if (mongoose.connections[0].readyState !== 0) {
+      await mongoose.disconnect()
+    }
+
     // Attempt to connect to the database
     const db = await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s

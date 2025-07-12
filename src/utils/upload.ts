@@ -2,8 +2,6 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import type { NextApiRequest, NextApiResponse } from 'next';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -12,21 +10,15 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Create upload directory if it doesn't exist
-const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Create upload directories if they don't exist
+const baseUploadDir = path.join(process.cwd(), 'public', 'uploads');
+const profileUploadDir = path.join(baseUploadDir, 'profile');
+const productUploadDir = path.join(baseUploadDir, 'product');
 
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueFilename = `${uuidv4()}_${file.originalname.replace(/\s+/g, '_')}`;
-    cb(null, uniqueFilename);
-  },
+[baseUploadDir, profileUploadDir, productUploadDir].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 });
 
 // File filter function to accept only images
@@ -38,15 +30,6 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   }
 };
 
-// Create multer middleware
-export const upload = multer({
-  storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
-  fileFilter,
-});
-
 // Interface for file upload response
 export interface FileUploadResponse {
   success: boolean;
@@ -57,146 +40,329 @@ export interface FileUploadResponse {
   error?: string;
 }
 
-/**
- * Upload file to both local storage and Cloudinary
- * @param file Express.Multer.File object
- * @returns Promise with upload details
- */
-export async function uploadProfileImage(file: Express.Multer.File): Promise<FileUploadResponse> {
-  try {
-    // File is already saved locally by multer
-    const localFilePath = file.path;
-    
-    // Generate a public URL for the file (relative to public directory)
-    const publicPath = `/uploads/${path.basename(file.path)}`;
-    
-    // Upload to Cloudinary as backup
-    let cloudinaryResult;
-    try {
-      cloudinaryResult = await cloudinary.uploader.upload(localFilePath, {
-        folder: 'profile-images',
-        use_filename: true,
-        unique_filename: true,
-        overwrite: false,
-      });
-    } catch (cloudinaryError) {
-      console.error('Cloudinary upload failed:', cloudinaryError);
-      // Continue with local file if Cloudinary fails
-    }
+// Image upload types
+export type ImageType = 'profile' | 'product';
+export type UserRole = 'customer' | 'vendor' | 'admin';
 
-    return {
-      success: true,
-      message: 'File uploaded successfully',
-      localPath: localFilePath,
-      publicUrl: publicPath,
-      cloudinaryUrl: cloudinaryResult?.secure_url,
-    };
-  } catch (error: any) {
-    console.error('File upload error:', error);
-    return {
-      success: false,
-      message: 'File upload failed',
-      error: error.message,
-    };
+/**
+ * Generate filename based on type and user info
+ */
+function generateFilename(type: ImageType, role: UserRole, id: string, extension: string): string {
+  switch (type) {
+    case 'profile':
+      return `${role}_${id}.${extension}`;
+    case 'product':
+      return `vendor_${id}.${extension}`;
+    default:
+      return `${Date.now()}_${id}.${extension}`;
   }
 }
 
 /**
- * Delete a previously uploaded profile image
- * @param filePath Local file path to delete
- * @param cloudinaryId Cloudinary public ID (optional)
+ * Get upload directory based on image type
  */
-export async function deleteProfileImage(filePath: string, cloudinaryId?: string): Promise<boolean> {
+function getUploadDirectory(type: ImageType): string {
+  switch (type) {
+    case 'profile':
+      return profileUploadDir;
+    case 'product':
+      return productUploadDir;
+    default:
+      return baseUploadDir;
+  }
+}
+
+/**
+ * Get Cloudinary folder based on image type and role
+ */
+function getCloudinaryFolder(type: ImageType, role?: UserRole): string {
+  switch (type) {
+    case 'profile':
+      return `profile/${role || 'user'}`;
+    case 'product':
+      return 'products';
+    default:
+      return 'uploads';
+  }
+}
+
+/**
+ * Check if image exists in Cloudinary
+ */
+async function checkCloudinaryImage(publicId: string): Promise<boolean> {
   try {
-    // Delete local file
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-    
-    // Delete from Cloudinary if ID is provided
-    if (cloudinaryId) {
-      await cloudinary.uploader.destroy(cloudinaryId);
-    }
-    
+    await cloudinary.api.resource(publicId);
     return true;
   } catch (error) {
-    console.error('Error deleting file:', error);
     return false;
   }
 }
 
 /**
- * Process uploaded profile image in Next.js API routes
- * For use with API routes in app directory
- * @param formData FormData object containing the file
+ * Upload profile image with specific naming convention
  */
-export async function processProfileImageUpload(formData: FormData): Promise<FileUploadResponse> {
+export async function uploadProfileImage(
+  file: File | Express.Multer.File, 
+  role: UserRole, 
+  userId: string
+): Promise<FileUploadResponse> {
   try {
-    // Get file from formData
-    const file = formData.get('profileImage') as File;
-    
-    if (!file) {
-      return { 
-        success: false, 
-        message: 'No file provided' 
-      };
+    let buffer: Buffer;
+    let originalName: string;
+    let mimeType: string;
+
+    // Handle different file types
+    if ('arrayBuffer' in file) {
+      // File object from FormData
+      buffer = Buffer.from(await file.arrayBuffer());
+      originalName = file.name;
+      mimeType = file.type;
+    } else {
+      // Express.Multer.File
+      buffer = fs.readFileSync(file.path);
+      originalName = file.originalname;
+      mimeType = file.mimetype;
     }
-    
+
     // Check if it's an image
-    if (!file.type.startsWith('image/')) {
+    if (!mimeType.startsWith('image/')) {
       return { 
         success: false, 
         message: 'Only image files are allowed' 
       };
     }
+
+    // Get file extension
+    const ext = originalName.split('.').pop()?.toLowerCase() || 'jpg';
+    const filename = generateFilename('profile', role, userId, ext);
+    const localFilePath = path.join(getUploadDirectory('profile'), filename);
     
-    // Check file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-      return { 
-        success: false, 
-        message: 'File size should be less than 5MB' 
-      };
-    }
-    
-    // Create a unique filename
-    const uniqueFilename = `${uuidv4()}_${file.name.replace(/\s+/g, '_')}`;
-    const localFilePath = path.join(uploadDir, uniqueFilename);
-    
-    // Convert File to Buffer and save locally
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    // Save locally
     fs.writeFileSync(localFilePath, buffer);
     
-    // Generate a public URL for the file (relative to public directory)
-    const publicPath = `/uploads/${uniqueFilename}`;
+    // Generate public URL
+    const publicPath = `/uploads/profile/${filename}`;
     
-    // Upload to Cloudinary as backup
+    // Upload to Cloudinary
     let cloudinaryResult;
+    const cloudinaryFolder = getCloudinaryFolder('profile', role);
+    const cloudinaryPublicId = `${cloudinaryFolder}/${role}_${userId}`;
+    
     try {
       cloudinaryResult = await cloudinary.uploader.upload(localFilePath, {
-        folder: 'profile-images',
-        use_filename: true,
-        unique_filename: true,
-        overwrite: false,
+        folder: cloudinaryFolder,
+        public_id: cloudinaryPublicId,
+        overwrite: true,
+        format: ext,
       });
     } catch (cloudinaryError) {
       console.error('Cloudinary upload failed:', cloudinaryError);
-      // Continue with local file if Cloudinary fails
     }
-    
+
     return {
       success: true,
-      message: 'File uploaded successfully',
+      message: 'Profile image uploaded successfully',
       localPath: localFilePath,
       publicUrl: publicPath,
       cloudinaryUrl: cloudinaryResult?.secure_url,
     };
   } catch (error: any) {
-    console.error('File upload processing error:', error);
+    console.error('Profile image upload error:', error);
     return {
       success: false,
-      message: 'File upload processing failed',
+      message: 'Profile image upload failed',
       error: error.message,
     };
+  }
+}
+
+/**
+ * Upload product image with specific naming convention
+ */
+export async function uploadProductImage(
+  file: File | Express.Multer.File, 
+  productId: string
+): Promise<FileUploadResponse> {
+  try {
+    let buffer: Buffer;
+    let originalName: string;
+    let mimeType: string;
+
+    // Handle different file types
+    if ('arrayBuffer' in file) {
+      // File object from FormData
+      buffer = Buffer.from(await file.arrayBuffer());
+      originalName = file.name;
+      mimeType = file.type;
+    } else {
+      // Express.Multer.File
+      buffer = fs.readFileSync(file.path);
+      originalName = file.originalname;
+      mimeType = file.mimetype;
+    }
+
+    // Check if it's an image
+    if (!mimeType.startsWith('image/')) {
+      return { 
+        success: false, 
+        message: 'Only image files are allowed' 
+      };
+    }
+
+    // Get file extension
+    const ext = originalName.split('.').pop()?.toLowerCase() || 'jpg';
+    const filename = generateFilename('product', 'vendor', productId, ext);
+    const localFilePath = path.join(getUploadDirectory('product'), filename);
+    
+    // Save locally
+    fs.writeFileSync(localFilePath, buffer);
+    
+    // Generate public URL
+    const publicPath = `/uploads/product/${filename}`;
+    
+    // Upload to Cloudinary
+    let cloudinaryResult;
+    const cloudinaryFolder = getCloudinaryFolder('product');
+    const cloudinaryPublicId = `${cloudinaryFolder}/vendor_${productId}`;
+    
+    try {
+      cloudinaryResult = await cloudinary.uploader.upload(localFilePath, {
+        folder: cloudinaryFolder,
+        public_id: cloudinaryPublicId,
+        overwrite: true,
+        format: ext,
+      });
+    } catch (cloudinaryError) {
+      console.error('Cloudinary upload failed:', cloudinaryError);
+    }
+
+    return {
+      success: true,
+      message: 'Product image uploaded successfully',
+      localPath: localFilePath,
+      publicUrl: publicPath,
+      cloudinaryUrl: cloudinaryResult?.secure_url,
+    };
+  } catch (error: any) {
+    console.error('Product image upload error:', error);
+    return {
+      success: false,
+      message: 'Product image upload failed',
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Get image URL with fallback logic (Cloudinary first, then local)
+ */
+export async function getImageUrl(
+  type: ImageType, 
+  id: string, 
+  role?: UserRole
+): Promise<string | null> {
+  try {
+    // Construct Cloudinary URL
+    let cloudinaryPublicId: string;
+    if (type === 'profile' && role) {
+      cloudinaryPublicId = `${getCloudinaryFolder(type, role)}/${role}_${id}`;
+    } else if (type === 'product') {
+      cloudinaryPublicId = `${getCloudinaryFolder(type)}/vendor_${id}`;
+    } else {
+      return null;
+    }
+
+    // Check if image exists in Cloudinary
+    const cloudinaryExists = await checkCloudinaryImage(cloudinaryPublicId);
+    if (cloudinaryExists) {
+      return cloudinary.url(cloudinaryPublicId, { 
+        secure: true,
+        quality: 'auto',
+        fetch_format: 'auto' 
+      });
+    }
+
+    // Fallback to local file
+    let localPath: string;
+    if (type === 'profile' && role) {
+      // Try different extensions
+      const extensions = ['jpg', 'jpeg', 'png', 'webp'];
+      for (const ext of extensions) {
+        const filename = generateFilename(type, role, id, ext);
+        localPath = path.join(getUploadDirectory(type), filename);
+        if (fs.existsSync(localPath)) {
+          return `/uploads/${type}/${filename}`;
+        }
+      }
+    } else if (type === 'product') {
+      // Try different extensions
+      const extensions = ['jpg', 'jpeg', 'png', 'webp'];
+      for (const ext of extensions) {
+        const filename = generateFilename(type, 'vendor', id, ext);
+        localPath = path.join(getUploadDirectory(type), filename);
+        if (fs.existsSync(localPath)) {
+          return `/uploads/${type}/${filename}`;
+        }
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error getting image URL:', error);
+    return null;
+  }
+}
+
+/**
+ * Delete image from both Cloudinary and local storage
+ */
+export async function deleteImage(
+  type: ImageType, 
+  id: string, 
+  role?: UserRole
+): Promise<boolean> {
+  try {
+    let deleted = false;
+
+    // Delete from Cloudinary
+    let cloudinaryPublicId: string;
+    if (type === 'profile' && role) {
+      cloudinaryPublicId = `${getCloudinaryFolder(type, role)}/${role}_${id}`;
+    } else if (type === 'product') {
+      cloudinaryPublicId = `${getCloudinaryFolder(type)}/vendor_${id}`;
+    } else {
+      return false;
+    }
+
+    try {
+      await cloudinary.uploader.destroy(cloudinaryPublicId);
+      deleted = true;
+    } catch (cloudinaryError) {
+      console.error('Cloudinary deletion failed:', cloudinaryError);
+    }
+
+    // Delete local files (try all extensions)
+    const extensions = ['jpg', 'jpeg', 'png', 'webp'];
+    for (const ext of extensions) {
+      let filename: string;
+      if (type === 'profile' && role) {
+        filename = generateFilename(type, role, id, ext);
+      } else if (type === 'product') {
+        filename = generateFilename(type, 'vendor', id, ext);
+      } else {
+        continue;
+      }
+
+      const localPath = path.join(getUploadDirectory(type), filename);
+      if (fs.existsSync(localPath)) {
+        fs.unlinkSync(localPath);
+        deleted = true;
+      }
+    }
+
+    return deleted;
+  } catch (error) {
+    console.error('Error deleting image:', error);
+    return false;
   }
 }

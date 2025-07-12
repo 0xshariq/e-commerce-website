@@ -57,6 +57,11 @@ export interface ICustomer extends Document {
   gender?: 'male' | 'female' | 'other' | 'prefer-not-to-say'
   profileImage?: string
   
+  // OAuth Information
+  isOAuthUser?: boolean
+  oauthProvider?: 'google' | 'facebook' | 'github'
+  oauthId?: string
+  
   // Account Information
   isEmailVerified: boolean
   isMobileVerified: boolean
@@ -270,14 +275,20 @@ const CustomerSchema = new Schema<ICustomer>(
     // Basic Information
     firstName: {
       type: String,
-      required: [true, "First name is required"],
+      required: function(this: ICustomer) {
+        // Only required if not OAuth account (has password set)
+        return !!(this.password && this.password.length > 0);
+      },
       trim: true,
       minlength: [2, "First name must be at least 2 characters"],
       maxlength: [30, "First name cannot exceed 30 characters"],
     },
     lastName: {
       type: String,
-      required: [true, "Last name is required"],
+      required: function(this: ICustomer) {
+        // Only required if not OAuth account (has password set)
+        return !!(this.password && this.password.length > 0);
+      },
       trim: true,
       minlength: [1, "Last name must be at least 1 character"],
       maxlength: [30, "Last name cannot exceed 30 characters"],
@@ -291,13 +302,19 @@ const CustomerSchema = new Schema<ICustomer>(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: function(this: ICustomer) {
+        // Password not required for OAuth users
+        return !this.isOAuthUser;
+      },
       minlength: [8, "Password must be at least 8 characters"],
     },
     mobileNo: {
       type: String,
-      required: [true, "Mobile number is required"],
-      unique: true,
+      required: function(this: ICustomer) {
+        // Mobile not required for OAuth users initially
+        return !this.isOAuthUser;
+      },
+      sparse: true, // Allow multiple null values
       match: [/^\+?[1-9]\d{9,14}$/, "Please enter a valid mobile number"],
     },
     dateOfBirth: {
@@ -316,6 +333,19 @@ const CustomerSchema = new Schema<ICustomer>(
     profileImage: {
       type: String,
       default: ''
+    },
+
+    // OAuth Information
+    isOAuthUser: {
+      type: Boolean,
+      default: false
+    },
+    oauthProvider: {
+      type: String,
+      enum: ['google', 'facebook', 'github']
+    },
+    oauthId: {
+      type: String
     },
 
     // Account Information

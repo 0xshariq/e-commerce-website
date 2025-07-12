@@ -2,10 +2,11 @@ import { type NextRequest, NextResponse } from "next/server"
 import { connectDB } from "@/lib/database"
 import { Product, ProductZodSchema } from "@/models/product"
 import { ProductReview } from "@/models/product-review"
+import { ProductSale } from "@/models/product-sale"
 import { Order } from "@/models/order"
 import { Wishlist } from "@/models/wishlist"
-import { Category } from "@/models/category"
-import { getServerSession } from "next-auth"
+import { Customer } from "@/models/customer"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 
 export async function GET(request: NextRequest, { params }: { params: { productId: string } }) {
@@ -13,52 +14,128 @@ export async function GET(request: NextRequest, { params }: { params: { productI
     await connectDB()
 
     const product = await Product.findById(params.productId)
-      .populate("category", "name description")
-      .populate("vendorId", "businessName shopAddress email phone")
+      .populate("vendorId", "businessName shopAddress email phone contactPersonName")
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    const [reviews, totalOrders, relatedProducts] = await Promise.all([
+    // Get active sales for this product
+    const activeSales = await ProductSale.find({
+      productId: params.productId,
+      isActive: true,
+      saleStartingDate: { $lte: new Date() },
+      saleEndingDate: { $gt: new Date() }
+    })
+
+    const [reviews, totalOrders, relatedProducts, totalReviews] = await Promise.all([
       ProductReview.find({ productId: params.productId })
-        .populate("customerId", "name")
+        .populate("customerId", "firstName lastName")
         .sort({ createdAt: -1 })
         .limit(10),
-      Order.countDocuments({ productId: params.productId }),
+      Order.countDocuments({ 
+        "items.productId": params.productId,
+        status: { $in: ["completed", "delivered"] }
+      }),
       Product.find({
         category: product.category,
         _id: { $ne: params.productId },
         status: "active",
+        isPublished: true
       })
-        .populate("category", "name")
         .populate("vendorId", "businessName")
         .limit(6),
+      ProductReview.countDocuments({ productId: params.productId })
     ])
 
-    const averageRating =
-      reviews.length > 0 ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0
+    // Calculate review statistics
+    const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    let totalRating = 0
+    
+    reviews.forEach(review => {
+      ratingCounts[review.rating as keyof typeof ratingCounts]++
+      totalRating += review.rating
+    })
+
+    const averageRating = totalReviews > 0 ? totalRating / totalReviews : 0
 
     // Check if user has this in wishlist
     const session = await getServerSession(authOptions)
     let isInWishlist = false
+    let userReview = null
+    
     if (session?.user?.role === "customer") {
-      const wishlistItem = await Wishlist.findOne({
-        customerId: session.user.id,
-        productId: params.productId,
-      })
+      const [wishlistItem, existingReview] = await Promise.all([
+        Wishlist.findOne({
+          customerId: session.user.id,
+          productId: params.productId,
+        }),
+        ProductReview.findOne({
+          customerId: session.user.id,
+          productId: params.productId,
+        })
+      ])
+      
       isInWishlist = !!wishlistItem
+      userReview = existingReview
     }
 
+    // Determine current pricing (consider active sales)
+    let currentPrice = product.productPrice
+    let saleInfo = null
+    
+    if (activeSales.length > 0) {
+      // Get the best sale (highest discount)
+      const bestSale = activeSales.reduce((best, current) => {
+        const bestDiscount = best.discountType === 'percentage' 
+          ? (product.productPrice * best.discountValue / 100)
+          : best.discountValue
+        const currentDiscount = current.discountType === 'percentage'
+          ? (product.productPrice * current.discountValue / 100)
+          : current.discountValue
+        return currentDiscount > bestDiscount ? current : best
+      })
+      
+      currentPrice = bestSale.salePrice
+      saleInfo = {
+        id: bestSale._id,
+        title: bestSale.saleTitle,
+        discountType: bestSale.discountType,
+        discountValue: bestSale.discountValue,
+        originalPrice: product.productPrice,
+        salePrice: bestSale.salePrice,
+        saleEndingDate: bestSale.saleEndingDate,
+        saleType: bestSale.saleType,
+        remainingQuantity: bestSale.getRemainingQuantity()
+      }
+    }
+
+    // Calculate stock status
+    const stockStatus = product.stockQuantity <= 0 ? 'out-of-stock' 
+      : product.stockQuantity <= (product.minStockLevel || 5) ? 'low-stock' 
+      : 'in-stock'
+
     return NextResponse.json({
-      product,
+      product: {
+        ...product.toObject(),
+        currentPrice,
+        stockStatus,
+        saleInfo
+      },
       reviews,
       relatedProducts,
       analytics: {
         averageRating: Math.round(averageRating * 10) / 10,
-        totalReviews: reviews.length,
+        totalReviews,
+        ratingCounts,
         totalOrders,
         isInWishlist,
+        userReview: userReview ? {
+          id: userReview._id,
+          rating: userReview.rating,
+          comment: userReview.comment,
+          createdAt: userReview.createdAt
+        } : null
       },
     })
   } catch (error) {
@@ -128,8 +205,8 @@ export async function POST(request: NextRequest, { params }: { params: { product
         // Check if customer has purchased this product
         const hasPurchased = await Order.findOne({
           customerId: session.user.id,
-          productId: params.productId,
-          orderStatus: "delivered",
+          "items.productId": params.productId,
+          status: "delivered",
         })
 
         if (!hasPurchased) {
@@ -154,7 +231,7 @@ export async function POST(request: NextRequest, { params }: { params: { product
           reviewDate: new Date(),
         })
         await review.save()
-        await review.populate("customerId", "name")
+        await review.populate("customerId", "firstName lastName")
 
         return NextResponse.json({ message: "Review added successfully", review })
 
@@ -189,25 +266,20 @@ export async function PUT(request: NextRequest, { params }: { params: { productI
 
     await connectDB()
 
-    // Verify category exists if being updated
-    if (validation.data.category) {
-      const categoryExists = await Category.findById(validation.data.category)
-      if (!categoryExists) {
-        return NextResponse.json({ error: "Invalid category" }, { status: 400 })
-      }
-    }
-
     const product = await Product.findOneAndUpdate(
       { _id: params.productId, vendorId: session.user.id },
       validation.data,
       { new: true, runValidators: true },
-    ).populate("category", "name")
+    ).populate("vendorId", "businessName")
 
     if (!product) {
       return NextResponse.json({ error: "Product not found or unauthorized" }, { status: 404 })
     }
 
-    return NextResponse.json({ product })
+    return NextResponse.json({ 
+      message: "Product updated successfully",
+      product 
+    })
   } catch (error) {
     console.error("Error updating product:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -255,19 +327,34 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
       return NextResponse.json({ error: "Field is required" }, { status: 400 })
     }
 
+    // Validate allowed fields for patch updates
+    const allowedFields = ['status', 'isPublished', 'stockQuantity', 'productPrice', 'isFeatured']
+    if (!allowedFields.includes(field)) {
+      return NextResponse.json({ 
+        error: `Field '${field}' cannot be updated via PATCH. Use PUT for full updates.` 
+      }, { status: 400 })
+    }
+
     await connectDB()
 
     const updateData = { [field]: value, updatedAt: new Date() }
-    const product = await Product.findOneAndUpdate({ _id: params.productId, vendorId: session.user.id }, updateData, {
-      new: true,
-      runValidators: true,
-    }).populate("category", "name")
+    const product = await Product.findOneAndUpdate(
+      { _id: params.productId, vendorId: session.user.id }, 
+      updateData, 
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).populate("vendorId", "businessName")
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ product })
+    return NextResponse.json({ 
+      message: `Product ${field} updated successfully`,
+      product 
+    })
   } catch (error) {
     console.error("Error patching product:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
