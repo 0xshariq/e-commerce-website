@@ -1,7 +1,7 @@
 import twilio from 'twilio';
 import { connectDB } from './database';
 import mongoose from 'mongoose';
-import { generateCustomerOTPSMS, type CustomerOTPSMSData } from '@/templates/sms/customer-sms-templates';
+import { generateCustomerOTPSMS, type CustomerOTPSMSData } from '@/templates/sms/customer-sms-templates";
 import { generateVendorOTPSMS, type VendorOTPSMSData } from '@/templates/sms/vendor-sms-templates';
 import { generateAdminOTPSMS, type AdminOTPSMSData } from '@/templates/sms/admin-sms-templates';
 
@@ -11,6 +11,12 @@ const authToken = process.env.TWILIO_AUTH_TOKEN
 const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
 const senderNumber = process.env.TWILIO_PHONE_NUMBER // Fallback if messaging service is not available
 
+if(!accountSid || !authToken || !messagingServiceSid) {
+  throw new Error("Twilio credentials are not set. Please check your environment variables.");
+}
+if(!senderNumber){
+  throw new Error("Twilio sender number is not set. Please check your environment variables.");
+}
 // Define OTP Schema with role support
 const OTPSchema = new mongoose.Schema({
   phoneNumber: { type: String, required: true, index: true },
