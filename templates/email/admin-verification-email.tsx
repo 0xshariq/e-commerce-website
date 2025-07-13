@@ -1,4 +1,14 @@
 import React from 'react';
+import {
+  Html,
+  Head,
+  Body,
+  Container,
+  Section,
+  Text,
+  Heading,
+  Hr,
+} from '@react-email/components';
 
 interface AdminVerificationEmailProps {
   adminName: string;
@@ -12,89 +22,235 @@ export default function AdminVerificationEmail({
   expiryTime,
 }: AdminVerificationEmailProps) {
   return (
-    <html>
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Admin Email Verification</title>
-      </head>
-      <body style={{ fontFamily: 'Arial, sans-serif', lineHeight: '1.6', color: '#333', maxWidth: '600px', margin: '0 auto', padding: '20px' }}>
-        <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '10px', border: '1px solid #e9ecef' }}>
+    <Html>
+      <Head />
+      <Body style={main}>
+        <Container style={container}>
           {/* Header */}
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h1 style={{ color: '#dc3545', margin: '0', fontSize: '28px', fontWeight: 'bold' }}>
+          <Section style={header}>
+            <Heading style={h1}>
               🛡️ Admin Portal
-            </h1>
-            <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
+            </Heading>
+            <Text style={subtitle}>
               Administrative Access Verification
-            </p>
-          </div>
+            </Text>
+          </Section>
 
           {/* Main Content */}
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-            <h2 style={{ color: '#212529', marginTop: '0', fontSize: '24px' }}>
+          <Section style={content}>
+            <Heading style={h2}>
               Hello {adminName}!
-            </h2>
+            </Heading>
             
-            <p style={{ color: '#495057', fontSize: '16px', marginBottom: '25px' }}>
+            <Text style={text}>
               You have requested admin access verification. Please use the verification code below to complete your login process.
-            </p>
+            </Text>
 
             {/* Verification Code Box */}
-            <div style={{ 
-              backgroundColor: '#fff3cd', 
-              border: '2px solid #ffc107', 
-              borderRadius: '8px', 
-              padding: '20px', 
-              textAlign: 'center', 
-              marginBottom: '25px' 
-            }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#856404', fontSize: '18px' }}>
+            <Section style={otpContainer}>
+              <Text style={otpLabel}>
                 Admin Verification Code
-              </h3>
-              <div style={{ 
-                fontSize: '32px', 
-                fontWeight: 'bold', 
-                color: '#dc3545', 
-                letterSpacing: '8px', 
-                fontFamily: 'monospace',
-                backgroundColor: 'white',
-                padding: '15px',
-                borderRadius: '6px',
-                border: '1px solid #ffc107'
-              }}>
+              </Text>
+              <Text style={otpCode}>
                 {verificationCode}
-              </div>
-            </div>
+              </Text>
+            </Section>
 
-            {/* Security Information */}
-            <div style={{ backgroundColor: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '6px', padding: '15px', marginBottom: '20px' }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#721c24', fontSize: '16px' }}>
-                🔒 Security Notice
-              </h4>
-              <ul style={{ margin: '0', padding: '0 0 0 20px', color: '#721c24' }}>
-                <li>This code expires at {expiryTime}</li>
-                <li>Never share this code with anyone</li>
-                <li>Only use this code on official admin login pages</li>
-                <li>If you didn't request this code, contact IT security immediately</li>
-              </ul>
-            </div>
+            {/* Admin Features */}
+            <Section style={featureBox}>
+              <Text style={featureTitle}>
+                ⚡ Admin Privileges:
+              </Text>
+              <Text style={featureText}>
+                • Full system access and control<br />
+                • User and vendor management<br />
+                • Platform analytics and reports<br />
+                • Security and audit controls<br />
+                • System configuration management
+              </Text>
+            </Section>
 
-            <p style={{ color: '#6c757d', fontSize: '14px', marginBottom: '0' }}>
-              If you're having trouble accessing your admin account, please contact the system administrator or IT support team.
-            </p>
-          </div>
+            {/* Security Warning */}
+            <Section style={securityBox}>
+              <Text style={securityTitle}>
+                ⚠️ Security Notice
+              </Text>
+              <Text style={securityText}>
+                • This code expires at {expiryTime}<br />
+                • Admin access requires highest security<br />
+                • Never share this code with anyone<br />
+                • Report suspicious activity immediately<br />
+                • Use secure networks only
+              </Text>
+            </Section>
+
+            <Text style={helpText}>
+              If you did not request admin access, please contact the system administrator immediately.
+            </Text>
+          </Section>
+
+          <Hr style={divider} />
 
           {/* Footer */}
-          <div style={{ textAlign: 'center', marginTop: '20px', padding: '15px', borderTop: '1px solid #dee2e6' }}>
-            <p style={{ margin: '0', color: '#6c757d', fontSize: '12px' }}>
-              This is an automated message for admin account verification.
+          <Section style={footer}>
+            <Text style={footerText}>
+              This is a security-critical administrative verification.
               <br />
-              For security purposes, please do not reply to this email.
-            </p>
-          </div>
-        </div>
-      </body>
-    </html>
+              System Access Control 🔐
+            </Text>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
   );
 }
+
+// Styles
+const main = {
+  backgroundColor: "#f5f7fa",
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+};
+
+const container = {
+  margin: "0 auto",
+  maxWidth: "600px",
+  backgroundColor: "#ffffff",
+  borderRadius: "8px",
+  overflow: "hidden",
+  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+};
+
+const header = {
+  padding: "24px",
+  textAlign: "center" as const,
+  backgroundColor: "#f8f9fa",
+};
+
+const h1 = {
+  color: "#dc3545",
+  fontSize: "28px",
+  fontWeight: "bold",
+  margin: "0",
+};
+
+const subtitle = {
+  color: "#6c757d",
+  fontSize: "14px",
+  margin: "5px 0 0 0",
+};
+
+const content = {
+  padding: "32px",
+};
+
+const h2 = {
+  color: "#212529",
+  fontSize: "24px",
+  fontWeight: "600",
+  marginTop: "0",
+};
+
+const text = {
+  color: "#495057",
+  fontSize: "16px",
+  lineHeight: "24px",
+  margin: "16px 0 24px 0",
+};
+
+const otpContainer = {
+  backgroundColor: "#fff3cd",
+  border: "2px solid #ffc107",
+  borderRadius: "8px",
+  padding: "24px",
+  textAlign: "center" as const,
+  margin: "24px 0",
+};
+
+const otpLabel = {
+  color: "#856404",
+  fontSize: "18px",
+  fontWeight: "600",
+  margin: "0 0 12px 0",
+};
+
+const otpCode = {
+  color: "#dc3545",
+  fontSize: "32px",
+  fontWeight: "bold",
+  letterSpacing: "8px",
+  fontFamily: "monospace",
+  backgroundColor: "white",
+  padding: "15px",
+  borderRadius: "6px",
+  border: "1px solid #dc3545",
+  margin: "0",
+};
+
+const featureBox = {
+  backgroundColor: "#f8f9fa",
+  border: "1px solid #dee2e6",
+  borderRadius: "6px",
+  padding: "16px",
+  margin: "20px 0",
+};
+
+const featureTitle = {
+  color: "#495057",
+  fontSize: "16px",
+  fontWeight: "600",
+  margin: "0 0 8px 0",
+};
+
+const featureText = {
+  color: "#6c757d",
+  fontSize: "14px",
+  lineHeight: "20px",
+  margin: "0",
+};
+
+const securityBox = {
+  backgroundColor: "#f8d7da",
+  border: "1px solid #f5c6cb",
+  borderRadius: "6px",
+  padding: "16px",
+  margin: "20px 0",
+};
+
+const securityTitle = {
+  color: "#721c24",
+  fontSize: "16px",
+  fontWeight: "600",
+  margin: "0 0 8px 0",
+};
+
+const securityText = {
+  color: "#721c24",
+  fontSize: "14px",
+  lineHeight: "20px",
+  margin: "0",
+};
+
+const helpText = {
+  color: "#6c757d",
+  fontSize: "14px",
+  lineHeight: "20px",
+  margin: "20px 0 0 0",
+};
+
+const divider = {
+  borderColor: "#e5e7eb",
+  margin: "32px 0",
+};
+
+const footer = {
+  backgroundColor: "#f9fafb",
+  padding: "24px",
+  textAlign: "center" as const,
+};
+
+const footerText = {
+  color: "#6c757d",
+  fontSize: "12px",
+  lineHeight: "18px",
+  margin: "0",
+};
