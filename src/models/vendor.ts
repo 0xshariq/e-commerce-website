@@ -482,6 +482,88 @@ VendorSchema.virtual('name').get(function() {
   return `${this.firstName} ${this.lastName}`;
 })
 
+// Zod Schema for vendor profile updates
+export const VendorUpdateZodSchema = z.object({
+  firstName: z.string()
+    .min(2, "First name must be at least 2 characters")
+    .max(30, "First name cannot exceed 30 characters")
+    .optional(),
+  
+  lastName: z.string()
+    .min(2, "Last name must be at least 2 characters")
+    .max(30, "Last name cannot exceed 30 characters")
+    .optional(),
+  
+  mobileNo: z.string()
+    .regex(/^\+?[\d\s\-()]{10,15}$/, "Please enter a valid mobile number")
+    .optional(),
+  
+  alternatePhone: z.string()
+    .regex(/^\+?[\d\s\-()]{10,15}$/, "Please enter a valid phone number")
+    .optional()
+    .or(z.literal("")),
+  
+  profileImage: z.string().url("Invalid profile image URL").optional(),
+  
+  businessInfo: z.object({
+    businessName: z.string()
+      .min(2, "Business name must be at least 2 characters")
+      .max(100, "Business name cannot exceed 100 characters")
+      .optional(),
+    
+    businessType: z.enum([
+      'individual', 'partnership', 'private_limited', 'public_limited', 
+      'llp', 'retail', 'wholesale', 'manufacturing', 'services', 'other'
+    ]).optional(),
+    
+    businessCategory: z.string()
+      .min(2, "Business category is required")
+      .optional(),
+    
+    gstNumber: z.string()
+      .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, "Invalid GST number format")
+      .optional()
+      .or(z.literal("")),
+    
+    panNumber: z.string()
+      .regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN number format")
+      .optional(),
+    
+    businessRegistrationNumber: z.string().optional().or(z.literal("")),
+    businessEmail: z.string().email("Invalid business email").optional().or(z.literal("")),
+    businessPhone: z.string()
+      .regex(/^\+?[\d\s\-()]{10,15}$/, "Invalid business phone number")
+      .optional()
+      .or(z.literal("")),
+    
+    yearEstablished: z.number()
+      .min(1800, "Year must be after 1800")
+      .max(new Date().getFullYear(), "Year cannot be in the future")
+      .optional()
+  }).optional(),
+  
+  upiId: z.string()
+    .min(3, "UPI ID must be at least 3 characters")
+    .regex(/^[\w\.-]+@[\w\.-]+$/, "Invalid UPI ID format")
+    .optional(),
+  
+  settings: z.object({
+    autoAcceptOrders: z.boolean().optional(),
+    maxOrdersPerDay: z.number().min(1, "Must allow at least 1 order per day").optional(),
+    workingHours: z.object({
+      start: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format").optional(),
+      end: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format").optional(),
+      workingDays: z.array(z.string()).optional()
+    }).optional(),
+    notifications: z.object({
+      orderAlerts: z.boolean().optional(),
+      paymentAlerts: z.boolean().optional(),
+      inventoryAlerts: z.boolean().optional(),
+      promotionalEmails: z.boolean().optional()
+    }).optional()
+  }).optional()
+})
+
 // Export the model
 export const Vendor = mongoose.models?.Vendor
   ? (mongoose.models.Vendor as mongoose.Model<IVendor>)

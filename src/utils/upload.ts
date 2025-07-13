@@ -99,12 +99,13 @@ async function checkCloudinaryImage(publicId: string): Promise<boolean> {
 }
 
 /**
- * Upload profile image with specific naming convention
+ * Upload profile image with specific naming convention and old image cleanup
  */
 export async function uploadProfileImage(
   file: File | Express.Multer.File, 
   role: UserRole, 
-  userId: string
+  userId: string,
+  oldImageUrl?: string
 ): Promise<FileUploadResponse> {
   try {
     let buffer: Buffer;
@@ -132,6 +133,19 @@ export async function uploadProfileImage(
       };
     }
 
+    // File size validation (5MB max)
+    if (buffer.length > 5 * 1024 * 1024) {
+      return {
+        success: false,
+        message: 'File size too large. Maximum size is 5MB.'
+      };
+    }
+
+    // Delete old image if exists
+    if (oldImageUrl) {
+      await deleteOldProfileImage(oldImageUrl, role, userId);
+    }
+
     // Get file extension
     const ext = originalName.split('.').pop()?.toLowerCase() || 'jpg';
     const filename = generateFilename('profile', role, userId, ext);
@@ -143,7 +157,7 @@ export async function uploadProfileImage(
     // Generate public URL
     const publicPath = `/uploads/profile/${filename}`;
     
-    // Upload to Cloudinary
+    // Upload to Cloudinary with optimizations
     let cloudinaryResult;
     const cloudinaryFolder = getCloudinaryFolder('profile', role);
     const cloudinaryPublicId = `${cloudinaryFolder}/${role}_${userId}`;
@@ -153,7 +167,10 @@ export async function uploadProfileImage(
         folder: cloudinaryFolder,
         public_id: cloudinaryPublicId,
         overwrite: true,
-        format: ext,
+        transformation: [
+          { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+          { quality: 'auto', fetch_format: 'auto' }
+        ]
       });
     } catch (cloudinaryError) {
       console.error('Cloudinary upload failed:', cloudinaryError);
@@ -365,4 +382,86 @@ export async function deleteImage(
     console.error('Error deleting image:', error);
     return false;
   }
+}
+
+/**
+ * Delete old profile image from both local and Cloudinary
+ */
+export async function deleteOldProfileImage(
+  oldImageUrl: string, 
+  role: UserRole, 
+  userId: string
+): Promise<boolean> {
+  try {
+    // Delete from local storage
+    if (oldImageUrl.startsWith('/uploads/profile/')) {
+      const filename = oldImageUrl.split('/').pop();
+      if (filename) {
+        const localPath = path.join(getUploadDirectory('profile'), filename);
+        if (fs.existsSync(localPath)) {
+          fs.unlinkSync(localPath);
+        }
+      }
+    }
+
+    // Delete from Cloudinary if it's a Cloudinary URL
+    if (oldImageUrl.includes('cloudinary.com')) {
+      const publicId = extractPublicIdFromUrl(oldImageUrl);
+      if (publicId) {
+        await cloudinary.uploader.destroy(publicId);
+      }
+    } else {
+      // Try with expected naming convention
+      const cloudinaryFolder = getCloudinaryFolder('profile', role);
+      const cloudinaryPublicId = `${cloudinaryFolder}/${role}_${userId}`;
+      try {
+        await cloudinary.uploader.destroy(cloudinaryPublicId);
+      } catch (error) {
+        // Ignore errors if image doesn't exist
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting old profile image:', error);
+    return false;
+  }
+}
+
+/**
+ * Extract public ID from Cloudinary URL
+ */
+function extractPublicIdFromUrl(url: string): string | null {
+  try {
+    const parts = url.split('/');
+    const uploadIndex = parts.findIndex(part => part === 'upload');
+    if (uploadIndex >= 0 && uploadIndex < parts.length - 2) {
+      const versionIndex = uploadIndex + 2;
+      const publicIdPart = parts.slice(versionIndex).join('/');
+      return publicIdPart.replace(/\.[^/.]+$/, ''); // Remove file extension
+    }
+  } catch (error) {
+    console.error('Error extracting public ID:', error);
+  }
+  return null;
+}
+
+/**
+ * Get default avatar URL
+ */
+export function getDefaultAvatarUrl(name: string, role: UserRole): string {
+  const initials = name
+    .split(' ')
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+  
+  const colors = {
+    customer: '3B82F6',    // Blue
+    vendor: '10B981',      // Green  
+    admin: 'EF4444'        // Red
+  };
+  
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&size=400&background=${colors[role]}&color=fff&format=png`;
 }

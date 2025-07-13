@@ -1,52 +1,164 @@
 import { NextRequest, NextResponse } from "next/server"
+import { connectDB } from "@/lib/database"
+import { FAQ, IFAQ } from "@/models/faq"
+import mongoose from "mongoose"
 
-interface FAQ {
-  id: string
-  question: string
-  answer: string
-  category: string
-  tags: string[]
+// GET /api/faqs - Fetch FAQs with search, filtering, and pagination
+export async function GET(request: NextRequest) {
+  try {
+    await connectDB()
+    
+    const { searchParams } = new URL(request.url)
+    const query = searchParams.get('q') || ''
+    const category = searchParams.get('category') || 'all'
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '20')
+    const sortBy = searchParams.get('sortBy') || 'priority'
+    const sortOrder = searchParams.get('sortOrder') || 'desc'
+    
+    // Build query
+    let mongoQuery: any = { isActive: true }
+    
+    // Search functionality
+    if (query) {
+      mongoQuery.$or = [
+        { question: { $regex: query, $options: 'i' } },
+        { answer: { $regex: query, $options: 'i' } },
+        { tags: { $in: [new RegExp(query, 'i')] } }
+      ]
+    }
+    
+    // Category filter
+    if (category && category !== 'all') {
+      mongoQuery.category = category
+    }
+    
+    // Sorting options
+    let sortOptions: any = {}
+    switch (sortBy) {
+      case 'priority':
+        sortOptions = { priority: sortOrder === 'desc' ? -1 : 1, views: -1 }
+        break
+      case 'views':
+        sortOptions = { views: sortOrder === 'desc' ? -1 : 1 }
+        break
+      case 'helpful':
+        sortOptions = { helpful: sortOrder === 'desc' ? -1 : 1 }
+        break
+      case 'newest':
+        sortOptions = { createdAt: -1 }
+        break
+      case 'oldest':
+        sortOptions = { createdAt: 1 }
+        break
+      default:
+        sortOptions = { priority: -1, views: -1 }
+    }
+    
+    // Execute query with pagination
+    const skip = (page - 1) * limit
+    const [faqs, total, categories] = await Promise.all([
+      FAQ.find(mongoQuery)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      FAQ.countDocuments(mongoQuery),
+      FAQ.aggregate([
+        { $match: { isActive: true } },
+        { $group: { _id: '$category', count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ])
+    ])
+    
+    // Format categories for frontend
+    const formattedCategories = [
+      { value: 'all', label: 'All Categories', count: total },
+      ...categories.map((cat: any) => ({
+        value: cat._id,
+        label: cat._id.charAt(0).toUpperCase() + cat._id.slice(1),
+        count: cat.count
+      }))
+    ]
+    
+    // Calculate pagination info
+    const totalPages = Math.ceil(total / limit)
+    const hasNextPage = page < totalPages
+    const hasPrevPage = page > 1
+    
+    return NextResponse.json({
+      success: true,
+      data: {
+        faqs,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: total,
+          itemsPerPage: limit,
+          hasNextPage,
+          hasPrevPage
+        },
+        categories: formattedCategories,
+        query: {
+          search: query,
+          category,
+          sortBy,
+          sortOrder
+        }
+      }
+    })
+    
+  } catch (error: any) {
+    console.error('Error fetching FAQs:', error)
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch FAQs' },
+      { status: 500 }
+    )
+  }
 }
 
-const ecommerceFAQs: FAQ[] = [
-  // Account & Registration
-  {
-    id: "account-01",
-    question: "How do I create an account?",
-    answer: "To create an account, click the 'Sign Up' button in the top right corner. You can register as a Customer, Vendor, or Admin. Fill in your details including name, email, password, and phone number. You'll receive verification emails and SMS to confirm your account.",
-    category: "account",
-    tags: ["registration", "signup", "account creation"]
-  },
-  {
-    id: "account-02",
-    question: "I forgot my password. How can I reset it?",
-    answer: "Click on 'Forgot Password' on the login page. Enter your registered email address, and we'll send you a password reset link. Follow the instructions in the email to create a new password.",
-    category: "account",
-    tags: ["password", "reset", "forgot"]
-  },
-  {
-    id: "account-03",
-    question: "How do I verify my email and mobile number?",
-    answer: "After registration, check your email and mobile for verification codes. Enter these codes on the verification page. Email verification helps secure your account, while mobile verification enables order updates and SMS notifications.",
-    category: "account",
-    tags: ["verification", "email", "mobile", "sms"]
-  },
-
-  // Orders & Shopping
-  {
-    id: "order-01",
-    question: "How do I place an order?",
-    answer: "Browse products, add items to your cart, and proceed to checkout. Enter your shipping address, select payment method, and confirm your order. You'll receive an order confirmation email with tracking details.",
-    category: "orders",
-    tags: ["place order", "checkout", "shopping"]
-  },
-  {
-    id: "order-02",
-    question: "Can I modify or cancel my order?",
-    answer: "You can modify or cancel orders within 30 minutes of placement, provided they haven't been processed. Go to 'My Orders' in your account dashboard and click 'Modify' or 'Cancel'. After processing, modifications aren't possible.",
-    category: "orders",
-    tags: ["cancel", "modify", "order management"]
-  },
+// POST /api/faqs - Create new FAQ (Admin only)
+export async function POST(request: NextRequest) {
+  try {
+    await connectDB()
+    
+    const body = await request.json()
+    const { question, answer, category, tags, priority = 0 } = body
+    
+    // Validation
+    if (!question || !answer || !category) {
+      return NextResponse.json(
+        { success: false, error: 'Question, answer, and category are required' },
+        { status: 400 }
+      )
+    }
+    
+    // Create new FAQ
+    const newFAQ = new FAQ({
+      question: question.trim(),
+      answer: answer.trim(),
+      category: category.toLowerCase(),
+      tags: tags ? tags.map((tag: string) => tag.toLowerCase().trim()) : [],
+      priority,
+      isActive: true
+    })
+    
+    await newFAQ.save()
+    
+    return NextResponse.json({
+      success: true,
+      data: newFAQ,
+      message: 'FAQ created successfully'
+    }, { status: 201 })
+    
+  } catch (error: any) {
+    console.error('Error creating FAQ:', error)
+    return NextResponse.json(
+      { success: false, error: 'Failed to create FAQ' },
+      { status: 500 }
+    )
+  }
+}
   {
     id: "order-03",
     question: "How can I track my order?",

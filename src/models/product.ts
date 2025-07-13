@@ -208,7 +208,7 @@ ProductSchema.index({ vendorId: 1, status: 1 })
 ProductSchema.index({ category: 1, subcategory: 1 })
 ProductSchema.index({ status: 1, isPublished: 1 })
 ProductSchema.index({ isFeatured: 1, status: 1 })
-ProductSchema.index({ sku: 1 }, { unique: true, sparse: true })
+// Note: sku index is already defined in the schema with unique: true, sparse: true
 
 // Virtual for calculating discounted price
 ProductSchema.virtual('discountedPrice').get(function() {

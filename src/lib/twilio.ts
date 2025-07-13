@@ -102,12 +102,9 @@ export class TwilioService {
       let notificationSent = false
       if (client) {
         try {
-          // Import SMS template from templates directory
-          const messageBody = getOtpVerificationTemplate({
-            code: otpCode,
-            firstName,
-            expiryMinutes: 10
-          })
+          // Generate generic OTP SMS message
+          const firstName_display = firstName || 'User';
+          const messageBody = `Hello ${firstName_display}! Your OTP to verify your account is: ${otpCode}. This code expires in 10 minutes. Do not share this code with anyone. - E-Commerce Platform`;
           const messageOptions: any = {
             body: messageBody,
             to: formattedNumber
@@ -310,7 +307,7 @@ export class TwilioService {
 
   // New method to get sender number for display purposes
   static getSenderNumber(): string {
-    return senderNumber
+    return senderNumber || '';
   }
 
   /**

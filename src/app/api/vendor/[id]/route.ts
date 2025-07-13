@@ -18,7 +18,7 @@ export async function GET(
 
     await connectDB()
     
-    const vendorId = params.id
+    const vendorId = (await params).id
     
     // Security check: Regular vendors can only access their own data
     if (session.user.role === "vendor" && session.user.id !== vendorId) {

@@ -185,8 +185,8 @@ ProductSaleSchema.methods.calculateSalePrice = function (originalPrice: number):
   }
 }
 
-// Zod Schema
-export const ProductSaleZodSchema = z.object({
+// Zod Schema - Base schema without refinements
+const BaseProductSaleZodSchema = z.object({
   saleId: z.string().min(1, "Sale ID is required"),
   productId: z.string().min(1, "Product ID is required"),
   vendorId: z.string().min(1, "Vendor ID is required"),
@@ -208,7 +208,10 @@ export const ProductSaleZodSchema = z.object({
   }).default("special"),
   minOrderQuantity: z.number().min(1, "Minimum order quantity must be at least 1").default(1).optional(),
   maxOrderQuantity: z.number().min(1, "Maximum order quantity must be at least 1").optional(),
-})
+});
+
+// Full schema with refinements
+export const ProductSaleZodSchema = BaseProductSaleZodSchema
   .refine(
     (data) => {
       // Validate percentage discount range
@@ -244,7 +247,8 @@ export const ProductSaleZodSchema = z.object({
     },
   );
 
-export const ProductSaleUpdateZodSchema = ProductSaleZodSchema.partial();
+// Partial schema for updates (without refinements for flexibility)
+export const ProductSaleUpdateZodSchema = BaseProductSaleZodSchema.partial();
 
 // Export Model
 export const ProductSale = mongoose.models?.ProductSale

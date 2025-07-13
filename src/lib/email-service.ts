@@ -1,7 +1,7 @@
 import sgMail from "@sendgrid/mail"
 import { connectDB } from "./database"
 import mongoose from "mongoose"
-import { renderToString } from "react-dom/server"
+import { render } from "@react-email/render"
 import React from "react"
 
 // Import role-specific email templates
@@ -82,7 +82,7 @@ export class EmailService {
   /**
    * Generate role-specific email content
    */
-  private static generateEmailContent(data: EmailOTPData & { otpCode: string; expiresAt: Date }): { html: string; subject: string } {
+  private static async generateEmailContent(data: EmailOTPData & { otpCode: string; expiresAt: Date }): Promise<{ html: string; subject: string }> {
     const { email, firstName, role, otpCode, expiresAt, purpose = 'registration' } = data;
     const companyName = process.env.COMPANY_NAME || "E-Commerce Platform";
     const expiryTime = expiresAt.toLocaleString();
@@ -92,7 +92,7 @@ export class EmailService {
 
     switch (role) {
       case 'customer':
-        html = renderToString(
+        html = await render(
           React.createElement(CustomerVerificationEmail, {
             customerName: firstName || 'Customer',
             verificationCode: otpCode,
@@ -104,7 +104,7 @@ export class EmailService {
         break;
 
       case 'vendor':
-        html = renderToString(
+        html = await render(
           React.createElement(VendorVerificationEmail, {
             vendorName: firstName || 'Vendor',
             verificationCode: otpCode,
@@ -115,11 +115,8 @@ export class EmailService {
         subject = `${companyName} - Vendor Account Verification`;
         break;
 
-      // this expression will never run
-      // because admin is already bydefault verified
-      // this is just for the reference
       case 'admin':
-        html = renderToString(
+        html = await render(
           React.createElement(AdminVerificationEmail, {
             adminName: firstName || 'Administrator',
             verificationCode: otpCode,
@@ -170,7 +167,7 @@ export class EmailService {
       const fromEmail = process.env.FROM_EMAIL || "no-reply@ecommerce.com"
 
       // Generate role-specific email content
-      const { html, subject } = this.generateEmailContent({
+      const { html, subject } = await this.generateEmailContent({
         email,
         firstName,
         role,

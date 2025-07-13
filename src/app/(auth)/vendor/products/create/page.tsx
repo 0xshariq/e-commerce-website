@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PRODUCT_CATEGORIES } from "@/models/product"
+import Image from "next/image"
 
 interface Product {
   _id?: string
@@ -389,9 +390,11 @@ export default function CreateProductPage() {
                     className="flex-1"
                   />
                   {productData.imageUrl && (
-                    <img 
+                    <Image
                       src={productData.imageUrl} 
                       alt="Product preview" 
+                      width={64}
+                      height={64}
                       className="h-16 w-16 object-cover rounded border"
                     />
                   )}
