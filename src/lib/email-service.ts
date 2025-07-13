@@ -61,21 +61,21 @@ export class EmailService {
     const companyName = process.env.COMPANY_NAME
     const fromEmail = process.env.FROM_EMAIL
     const sendgridKey = process.env.SENDGRID_API_KEY
-    
+
     if (!companyName || !fromEmail) {
       return {
         isValid: false,
         message: "Missing company name or sender email address"
       }
     }
-    
+
     if (!sendgridKey) {
       return {
         isValid: false,
         message: "SendGrid API key is missing"
       }
     }
-    
+
     return { isValid: true, message: "Email configuration is valid" }
   }
 
@@ -105,7 +105,7 @@ export class EmailService {
 
       case 'vendor':
         html = renderToString(
-          React.createElement(VendorOTPVerification, {
+          React.createElement(VendorVerificationEmail, {
             vendorName: firstName || 'Vendor',
             verificationCode: otpCode,
             purpose,
@@ -115,6 +115,9 @@ export class EmailService {
         subject = `${companyName} - Vendor Account Verification`;
         break;
 
+      // this expression will never run
+      // because admin is already bydefault verified
+      // this is just for the reference
       case 'admin':
         html = renderToString(
           React.createElement(AdminVerificationEmail, {
@@ -132,7 +135,7 @@ export class EmailService {
 
     return { html, subject };
   }
-  
+
   /**
    * Send an OTP code via email for verification based on user role
    */
@@ -142,16 +145,16 @@ export class EmailService {
 
       // Generate a 6-digit OTP
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString()
-      
+
       // Set expiration time (24 hours)
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
-      
+
       // Connect to database and save OTP
       await connectDB()
-      
+
       // Clear any previous OTPs for this email
       await EmailOTP.deleteMany({ email: email.toLowerCase() })
-      
+
       // Save new OTP to database
       await EmailOTP.create({
         email: email.toLowerCase(),
@@ -161,11 +164,11 @@ export class EmailService {
         purpose,
         verified: false
       })
-      
+
       // Get configuration
       const companyName = process.env.COMPANY_NAME || "E-Commerce Platform"
       const fromEmail = process.env.FROM_EMAIL || "no-reply@ecommerce.com"
-      
+
       // Generate role-specific email content
       const { html, subject } = this.generateEmailContent({
         email,
@@ -175,7 +178,7 @@ export class EmailService {
         otpCode,
         expiresAt
       });
-      
+
       // Send email using SendGrid if configured
       if (process.env.SENDGRID_API_KEY) {
         const msg = {
@@ -188,9 +191,9 @@ export class EmailService {
           html,
           text: `Your verification code for ${companyName} (${role}) is: ${otpCode}. This code will expire in 24 hours.`
         }
-        
+
         await sgMail.send(msg)
-        
+
         console.log(`✅ ${role} verification email sent successfully to ${email}`)
       } else {
         // Log to console in development mode
@@ -207,10 +210,10 @@ export class EmailService {
           ⚠️  Configure SENDGRID_API_KEY in .env to enable actual email sending
         `)
       }
-      
+
       // For development/testing environments, include the OTP in the response
       const isDev = process.env.NODE_ENV === "development"
-      
+
       return {
         success: true,
         message: `OTP sent successfully to ${email}`,
@@ -227,7 +230,7 @@ export class EmailService {
       }
     }
   }
-  
+
   /**
    * Verify an email OTP code
    */
@@ -235,7 +238,7 @@ export class EmailService {
     try {
       // Connect to database
       await connectDB()
-      
+
       // Build query - include role if provided for additional security
       const query: any = {
         email: email.toLowerCase(),
@@ -247,10 +250,10 @@ export class EmailService {
       if (role) {
         query.role = role;
       }
-      
+
       // Find the OTP record
       const otpRecord = await EmailOTP.findOne(query);
-      
+
       if (!otpRecord) {
         return {
           success: false,
@@ -258,17 +261,17 @@ export class EmailService {
           status: "rejected"
         }
       }
-      
+
       // Mark OTP as verified
       otpRecord.verified = true
       await otpRecord.save()
-      
+
       // Delete other OTPs for this email to keep the database clean
       await EmailOTP.deleteMany({
         email: email.toLowerCase(),
         _id: { $ne: otpRecord._id }
       })
-      
+
       return {
         success: true,
         message: "Email verified successfully",
@@ -283,7 +286,7 @@ export class EmailService {
       }
     }
   }
-  
+
   /**
    * Cancel pending email verifications
    */
@@ -291,16 +294,16 @@ export class EmailService {
     try {
       // Connect to database
       await connectDB()
-      
+
       // Build query - include role if provided
       const query: any = { email: email.toLowerCase() };
       if (role) {
         query.role = role;
       }
-      
+
       // Delete all OTP records for this email
       const result = await EmailOTP.deleteMany(query);
-      
+
       return {
         success: true,
         message: `Email verification cancelled successfully. ${result.deletedCount} OTP records removed.`
@@ -314,7 +317,7 @@ export class EmailService {
       }
     }
   }
-  
+
   /**
    * Check if email is valid format
    */
