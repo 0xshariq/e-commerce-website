@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { TwilioService } from "@/lib/twilio"
 import { connectDB } from "@/lib/database"
@@ -49,40 +49,36 @@ async function sendOTP(phoneNumber: string, channel: 'sms' | 'whatsapp') {
   if (!phoneNumber) {
     return NextResponse.json({ error: "Phone number is required" }, { status: 400 })
   }
+  
   // Validate Indian phone number format
   if (!TwilioService.isValidIndianPhoneNumber(phoneNumber)) {
     return NextResponse.json({ error: "Please enter a valid Indian mobile number" }, { status: 400 })
   }
-  let firstName: string | undefined;
-  const session = await getServerSession(authOptions);
-  if (session?.user?.name) {
-    firstName = session.user.name.split(' ')[0];
-  } else {
-    try {
-      await connectDB();
-      const customer = await Customer.findOne({ mobileNo: phoneNumber }).select('firstName');
-      const vendor = await Vendor.findOne({ mobileNo: phoneNumber }).select('firstName');
-      const admin = await Admin.findOne({ mobileNo: phoneNumber }).select('firstName');
-      if (customer) firstName = customer.firstName;
-      else if (vendor) firstName = vendor.firstName;
-      else if (admin) firstName = admin.firstName;
-    } catch (error) {
-      console.log('Error fetching user details:', error);
-    }
+  
+  // Get user role and ID from session if available
+  const session = await getServerSession(authOptions) as { user: { id: string, role: string } } | null;
+  let userRole: 'customer' | 'vendor' | 'admin' = 'customer';
+  let userId: string | undefined;
+  
+  if (session?.user) {
+    userRole = session.user.role as 'customer' | 'vendor' | 'admin';
+    userId = session.user.id;
   }
-  // Always use SMS for now
-  const actualChannel = 'sms';
-  // Generate and store OTP in DB, then send notification via Twilio
-  const result = await TwilioService.sendOTP(phoneNumber, actualChannel, firstName);
+  
+  // Fetch verification code from user's database record and send SMS
+  const result = await TwilioService.sendOTP(phoneNumber, userRole, userId);
+  
   if (result.success) {
     const response: any = {
       success: true,
       message: result.message,
-      channel: actualChannel
+      channel: 'sms'
     };
+    
     if (process.env.NODE_ENV === 'development' && result.otpCode) {
       response.otpCode = result.otpCode;
     }
+    
     return NextResponse.json(response);
   } else {
     return NextResponse.json({ error: result.message, details: result.error }, { status: 400 });
@@ -96,8 +92,16 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
     }, { status: 400 })
   }
 
-  // Verify OTP against our database
-  const result = await TwilioService.verifyOTP(phoneNumber, otpCode)
+  // Get user role from session if available
+  const session = await getServerSession(authOptions) as { user: { id: string, role: string } } | null;
+  let userRole: 'customer' | 'vendor' | 'admin' | undefined;
+  
+  if (session?.user?.role) {
+    userRole = session.user.role as 'customer' | 'vendor' | 'admin';
+  }
+
+  // Verify OTP against user database record
+  const result = await TwilioService.verifyOTP(phoneNumber, otpCode, userRole);
 
   if (!result.success) {
     return NextResponse.json({
@@ -106,75 +110,59 @@ async function verifyOTP(request: NextRequest, phoneNumber: string, otpCode: str
     }, { status: 400 })
   }
 
-  // If user is logged in, update their phone verification status
-  const session = await getServerSession(authOptions) as { user: { id: string, role: string } } | null
-  if (session) {
+  // If user is logged in, also update their session data
+  if (session?.user) {
     try {
-      await connectDB()
+      await connectDB();
       
-      const formattedNumber = TwilioService.formatPhoneNumber(phoneNumber)
-      let updateResult
-
+      const formattedNumber = TwilioService.formatPhoneNumber(phoneNumber);
+      
+      // Update phone number in user record if needed
       switch (session.user.role) {
         case "customer":
-          updateResult = await Customer.findByIdAndUpdate(
+          await Customer.findByIdAndUpdate(
             session.user.id,
             { 
-              phone: formattedNumber,
-              phoneVerified: true,
-              phoneVerifiedAt: new Date()
+              mobileNo: formattedNumber,
+              isMobileVerified: true
             },
             { new: true }
-          )
-          break
+          );
+          break;
         
         case "vendor":
-          updateResult = await Vendor.findByIdAndUpdate(
+          await Vendor.findByIdAndUpdate(
             session.user.id,
             { 
-              "contactInfo.phone": formattedNumber,
-              phoneVerified: true,
-              phoneVerifiedAt: new Date()
+              mobileNo: formattedNumber,
+              isMobileVerified: true
             },
             { new: true }
-          )
-          break
+          );
+          break;
         
         case "admin":
-          updateResult = await Admin.findByIdAndUpdate(
+          await Admin.findByIdAndUpdate(
             session.user.id,
             { 
-              phone: formattedNumber,
-              phoneVerified: true,
-              phoneVerifiedAt: new Date()
+              mobileNo: formattedNumber,
+              isMobileVerified: true
             },
             { new: true }
-          )
-          break
-      }
-
-      if (updateResult) {
-        return NextResponse.json({
-          success: true,
-          message: "Phone number verified and updated successfully",
-          phoneVerified: true
-        })
+          );
+          break;
       }
     } catch (dbError) {
-      console.error("Database update error:", dbError)
-      // Still return success for verification, but note DB issue
-      return NextResponse.json({
-        success: true,
-        message: "Phone number verified successfully",
-        warning: "Profile update pending"
-      })
+      console.error("Database update error:", dbError);
+      // Still return success for verification
     }
   }
 
   return NextResponse.json({
     success: true,
-    message: result.message
-  })
+    message: result.message,
+    phoneVerified: true
+  });
 }
 
 async function cancelVerification(phoneNumber: string) {
@@ -201,7 +189,7 @@ async function cancelVerification(phoneNumber: string) {
 // Helper endpoint to check verification status
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession(authOptions) as { user: { id: string, role: string } } | null;
     
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -209,7 +197,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB()
 
-    let user;
+    let user: any;
     const userId = session.user.id;
     const userRole = session.user.role;
     
@@ -219,13 +207,13 @@ export async function GET(request: NextRequest) {
 
     switch (userRole) {
       case "customer":
-        user = await Customer.findById(userId).select("phone phoneVerified phoneVerifiedAt")
+        user = await Customer.findById(userId).select("mobileNo isMobileVerified")
         break
       case "vendor":
-        user = await Vendor.findById(userId).select("contactInfo.phone phoneVerified phoneVerifiedAt")
+        user = await Vendor.findById(userId).select("mobileNo isMobileVerified")
         break
       case "admin":
-        user = await Admin.findById(userId).select("phone phoneVerified phoneVerifiedAt")
+        user = await Admin.findById(userId).select("mobileNo isMobileVerified")
         break
       default:
         return NextResponse.json({ error: "Invalid user role" }, { status: 400 })
@@ -235,12 +223,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const phone = userRole === "vendor" ? user.contactInfo?.phone : user.phone
-
     return NextResponse.json({
-      phoneNumber: phone,
-      phoneVerified: user.phoneVerified || false,
-      phoneVerifiedAt: user.phoneVerifiedAt || null
+      phoneNumber: user.mobileNo || null,
+      phoneVerified: user.isMobileVerified || false
     })
 
   } catch (error) {

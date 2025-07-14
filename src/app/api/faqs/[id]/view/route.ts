@@ -3,19 +3,19 @@ import { connectDB } from "@/lib/database"
 import { FAQ } from "@/models/faq"
 import mongoose from "mongoose"
 
-// POST /api/faqs/[faqId]/view - Increment view count for FAQ
+// POST /api/faqs/[id]/view - Increment view count for FAQ
 export async function POST(
   request: NextRequest,
-  context: { params: Promise<{ faqId: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const params = await context.params
     await connectDB()
     
-    const { faqId } = params
+    const { id } = params
     
     // Validate input
-    if (!mongoose.Types.ObjectId.isValid(faqId)) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { success: false, error: 'Invalid FAQ ID' },
         { status: 400 }
@@ -24,7 +24,7 @@ export async function POST(
     
     // Increment view count
     const updatedFAQ = await FAQ.findByIdAndUpdate(
-      faqId,
+      id,
       { $inc: { views: 1 } },
       { new: true, runValidators: true }
     )
@@ -39,7 +39,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       data: {
-        faqId,
+        id,
         views: updatedFAQ.views
       }
     })
