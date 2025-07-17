@@ -179,7 +179,7 @@ export class TwilioService {
         success: true,
         message: smsSent ? `Verification code sent via SMS to ${formattedNumber}` : `Verification code found in database`,
         status: 'pending',
-        ...(isDev && { otpCode })
+        ...(isDev && { otpCode: otpCode ?? undefined })
       };
       
     } catch (error: any) {
