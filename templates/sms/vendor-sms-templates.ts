@@ -4,7 +4,6 @@ export interface VendorOTPSMSData {
   vendorName: string;
   otp: string;
   expiryMinutes: number;
-  purpose: 'registration' | 'login' | 'password-reset' | 'profile-update';
 }
 
 export interface VendorSMSData {
@@ -13,18 +12,9 @@ export interface VendorSMSData {
 }
 
 export function generateVendorOTPSMS(data: VendorOTPSMSData): string {
-  const { vendorName, otp, expiryMinutes, purpose } = data;
+  const { vendorName, otp, expiryMinutes } = data;
   
-  const purposeTexts = {
-    registration: 'complete your vendor registration',
-    login: 'log into your vendor account',
-    'password-reset': 'reset your vendor password',
-    'profile-update': 'update your vendor profile'
-  };
-
-  const purposeText = purposeTexts[purpose] || 'verify your vendor account';
-
-  return `Hello ${vendorName}! Your OTP to ${purposeText} is: ${otp}. This code expires in ${expiryMinutes} minutes. Keep it secure. - E-Commerce Vendor Portal`;
+  return `Hello ${vendorName}! Your verification code is: ${otp}. This code expires in ${expiryMinutes} minutes. Keep it secure. - E-Commerce Vendor Portal`;
 }
 
 export function generateVendorWelcomeSMS(data: VendorSMSData): string {

@@ -183,8 +183,8 @@ export class EmailService {
       }
       
       // Get configuration
-      const companyName = process.env.COMPANY_NAME || "E-Commerce Platform";
-      const fromEmail = process.env.FROM_EMAIL || "no-reply@ecommerce.com";
+      const companyName = process.env.COMPANY_NAME!;
+      const fromEmail = process.env.FROM_EMAIL!;
       
       // Generate role-specific email content
       const { html, subject } = await this.generateEmailContent({

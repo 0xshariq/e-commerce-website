@@ -4,7 +4,6 @@ export interface AdminOTPSMSData {
   adminName: string;
   otp: string;
   expiryMinutes: number;
-  purpose: 'login' | 'password-reset' | 'system-access' | 'security-verification';
 }
 
 export interface AdminSMSData {
@@ -13,18 +12,9 @@ export interface AdminSMSData {
 }
 
 export function generateAdminOTPSMS(data: AdminOTPSMSData): string {
-  const { adminName, otp, expiryMinutes, purpose } = data;
+  const { adminName, otp, expiryMinutes } = data;
   
-  const purposeTexts = {
-    login: 'log into admin panel',
-    'password-reset': 'reset your admin password',
-    'system-access': 'access system functions',
-    'security-verification': 'verify security access'
-  };
-
-  const purposeText = purposeTexts[purpose] || 'verify admin access';
-
-  return `ADMIN ALERT: ${adminName}, your secure OTP to ${purposeText} is: ${otp}. Expires in ${expiryMinutes} mins. Keep confidential. - Admin Portal`;
+  return `ADMIN ALERT: ${adminName}, your secure verification code is: ${otp}. Expires in ${expiryMinutes} mins. Keep confidential. - Admin Portal`;
 }
 
 export function generateAdminSecurityAlertSMS(data: AdminSMSData & { activity: string; location?: string }): string {

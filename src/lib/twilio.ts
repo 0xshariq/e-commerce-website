@@ -8,10 +8,10 @@ import { generateVendorOTPSMS } from '../../templates/sms/vendor-sms-templates';
 import { generateAdminOTPSMS } from '../../templates/sms/admin-sms-templates';
 
 // Twilio configuration
-const accountSid = process.env.TWILIO_ACCOUNT_SID
-const authToken = process.env.TWILIO_AUTH_TOKEN
-const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
-const senderNumber = process.env.TWILIO_PHONE_NUMBER // Fallback if messaging service is not available
+const accountSid = process.env.TWILIO_ACCOUNT_SID!;
+const authToken = process.env.TWILIO_AUTH_TOKEN!;
+const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID!;
+const senderNumber = process.env.TWILIO_PHONE_NUMBER!; 
 
 if(!accountSid || !authToken || !messagingServiceSid) {
   console.warn("Twilio credentials are not set. SMS functionality will be limited.");
@@ -133,24 +133,21 @@ export class TwilioService {
               messageBody = generateCustomerOTPSMS({
                 customerName: userName,
                 otp: otpCode, // otpCode is guaranteed to be string here
-                expiryMinutes: Math.max(expiryMinutes, 1),
-                purpose: 'profile-update'
+                expiryMinutes: Math.max(expiryMinutes, 1)
               });
               break;
             case 'vendor':
               messageBody = generateVendorOTPSMS({
                 vendorName: userName,
                 otp: otpCode, // otpCode is guaranteed to be string here
-                expiryMinutes: Math.max(expiryMinutes, 1),
-                purpose: 'profile-update'
+                expiryMinutes: Math.max(expiryMinutes, 1)
               });
               break;
             case 'admin':
               messageBody = generateAdminOTPSMS({
                 adminName: userName,
                 otp: otpCode, // otpCode is guaranteed to be string here
-                expiryMinutes: Math.max(expiryMinutes, 1),
-                purpose: 'registration'
+                expiryMinutes: Math.max(expiryMinutes, 1)
               });
               break;
             default:

@@ -4,22 +4,12 @@ export interface CustomerOTPSMSData {
   customerName: string;
   otp: string;
   expiryMinutes: number;
-  purpose: 'registration' | 'login' | 'password-reset' | 'profile-update';
 }
 
 export function generateCustomerOTPSMS(data: CustomerOTPSMSData): string {
-  const { customerName, otp, expiryMinutes, purpose } = data;
+  const { customerName, otp, expiryMinutes } = data;
   
-  const purposeTexts = {
-    registration: 'complete your registration',
-    login: 'log into your account',
-    'password-reset': 'reset your password',
-    'profile-update': 'update your profile'
-  };
-
-  const purposeText = purposeTexts[purpose] || 'verify your account';
-
-  return `Hello ${customerName}! Your OTP to ${purposeText} is: ${otp}. This code expires in ${expiryMinutes} minutes. Do not share this code with anyone. - E-Commerce Platform`;
+  return `Hello ${customerName}! Your verification code is: ${otp}. This code expires in ${expiryMinutes} minutes. Do not share this code with anyone. - E-Commerce Platform`;
 }
 
 export function generateCustomerWelcomeSMS(customerName: string): string {

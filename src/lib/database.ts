@@ -32,29 +32,44 @@ async function connectDB(): Promise<typeof mongoose> {
       await mongoose.disconnect()
     }
 
-    // Attempt to connect to the database
+    // Attempt to connect to the database with improved settings
     const db = await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+      serverSelectionTimeoutMS: 30000, // Increased timeout to 30s
+      connectTimeoutMS: 30000, // Connection timeout 30s
+      socketTimeoutMS: 60000, // Socket timeout 60s
       maxPoolSize: 10, // Maintain up to 10 socket connections
-      minPoolSize: 5, // Maintain a minimum of 5 socket connections
+      minPoolSize: 2, // Maintain a minimum of 2 socket connections
       maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
       bufferCommands: false, // Disable mongoose buffering
+      retryWrites: true, // Enable retry writes for better reliability
+      directConnection: false, // Use replica set connection
     })
 
     // Update connection status
     connection.isConnected = db.connections[0].readyState
 
     if (connection.isConnected === mongoose.ConnectionStates.connected) {
-      console.log("Successfully connected to DB")
+      console.log("✅ Successfully connected to MongoDB")
     } else {
-      console.log("Failed to establish a stable connection to DB")
+      console.log("⚠️ Failed to establish a stable connection to MongoDB")
     }
 
     return mongoose
-  } catch (error) {
-    console.error("Error connecting to DB:", error)
+  } catch (error: any) {
+    console.error("❌ Error connecting to MongoDB:", error.message)
     connection.isConnected = mongoose.ConnectionStates.disconnected
+    
+    // For development, provide helpful error messages
+    if (process.env.NODE_ENV === 'development') {
+      if (error.message.includes('Server selection timed out')) {
+        console.log("💡 Possible solutions:")
+        console.log("   - Check if MongoDB is running")
+        console.log("   - Verify MONGODB_URI in .env file")
+        console.log("   - Check network connectivity")
+        console.log("   - Ensure MongoDB allows connections from your IP")
+      }
+    }
+    
     throw error
   }
 }
