@@ -171,7 +171,7 @@ export default function AdminUsersContent() {
         setVendors(prevVendors => {
           return prevVendors.map(vendor => {
             if (vendor.id === vendorId) {
-              let updatedVendor = { ...vendor };
+              const updatedVendor = { ...vendor };
               
               if (action === 'suspend') {
                 updatedVendor.isSuspended = true;

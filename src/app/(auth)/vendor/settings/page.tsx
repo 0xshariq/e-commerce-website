@@ -96,7 +96,7 @@ export default function VendorSettingsPage() {
       return
     }
 
-    if (status === "authenticated" && (session?.user as any)?.role !== "vendor") {
+    if (status === "authenticated" && (session?.user as { role?: string })?.role !== "vendor") {
       router.push("/")
       return
     }
@@ -104,11 +104,11 @@ export default function VendorSettingsPage() {
     if (status === "authenticated") {
       fetchVendorData()
     }
-  }, [status, session, router])
+  }, [status, session, router, fetchVendorData])
 
   const fetchVendorData = async () => {
     try {
-      const response = await fetch(`/api/vendor?id=${(session?.user as any)?.id}`)
+      const response = await fetch(`/api/vendor?id=${(session?.user as { id?: string })?.id}`)
       if (response.ok) {
         const data = await response.json()
         setVendorData(data.vendors[0])
@@ -123,10 +123,10 @@ export default function VendorSettingsPage() {
     }
   }
 
-  const updatePersonalInfo = async (updatedInfo: any) => {
+  const updatePersonalInfo = async (updatedInfo: Record<string, unknown>) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as { id?: string })?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personalInfo: updatedInfo }),
@@ -146,10 +146,10 @@ export default function VendorSettingsPage() {
     }
   }
 
-  const updateBusinessInfo = async (updatedInfo: any) => {
+  const updateBusinessInfo = async (updatedInfo: Record<string, unknown>) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as { id?: string })?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ businessInfo: updatedInfo }),
@@ -169,10 +169,10 @@ export default function VendorSettingsPage() {
     }
   }
 
-  const updateAddresses = async (updatedAddresses: any) => {
+  const updateAddresses = async (updatedAddresses: Record<string, unknown>) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as { id?: string })?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: updatedAddresses }),
@@ -192,10 +192,10 @@ export default function VendorSettingsPage() {
     }
   }
 
-  const updatePaymentInfo = async (updatedPayment: any) => {
+  const updatePaymentInfo = async (updatedPayment: Record<string, unknown>) => {
     setSaving(true)
     try {
-      const response = await fetch(`/api/vendor/${(session?.user as any)?.id}`, {
+      const response = await fetch(`/api/vendor/${(session?.user as { id?: string })?.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentInfo: updatedPayment }),

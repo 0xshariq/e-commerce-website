@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, Bell, Save, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { Shield, Save, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function CustomerSettingsPage() {
   const { data: session, status } = useSession();
@@ -25,7 +25,7 @@ export default function CustomerSettingsPage() {
 
   useEffect(() => {
     if (status === "loading") return;
-    if (!session?.user || (session.user as any).role !== "customer") {
+    if (!session?.user || (session.user as { role?: string }).role !== "customer") {
       router.push("/auth/signin");
       return;
     }
@@ -39,7 +39,7 @@ export default function CustomerSettingsPage() {
       if (!response.ok) throw new Error("Failed to fetch settings");
       const data = await response.json();
       setSettings(data.settings);
-    } catch (error) {
+    } catch (_error) {
       setError("Failed to load settings");
     } finally {
       setLoading(false);
@@ -58,7 +58,7 @@ export default function CustomerSettingsPage() {
       if (!response.ok) throw new Error("Failed to update settings");
       setSuccess("Settings updated successfully!");
       setTimeout(() => setSuccess(""), 3000);
-    } catch (error) {
+    } catch (_error) {
       setError("Failed to update settings");
     } finally {
       setSaving(false);

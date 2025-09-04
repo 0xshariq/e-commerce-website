@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")
 
     // Build query
-    let query: any = {}
+    const query: any = {}
     
     if (status) {
       query.status = status
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Apply coupon if provided
-    let discount = 0
+    const discount = 0
     if (couponCode) {
       // Implement coupon validation logic here
       // For now, we'll skip this

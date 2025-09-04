@@ -19,39 +19,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import EmailVerification from "@/components/email-verification";
 import MobileVerification from "@/components/mobile-verification";
 import {
   User,
-  Edit,
   Shield,
   Camera,
   Phone,
   Mail,
-  MapPin,
   Calendar as CalendarIcon,
   Save,
   Loader2,
   CheckCircle,
   AlertCircle,
   Package,
-  Star,
   Heart,
   ShoppingCart,
   Settings,
   Bell,
   CreditCard,
 } from "lucide-react";
-import { formatDate, formatNumber } from "@/utils/formatting";
+import { formatNumber } from "@/utils/formatting";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -66,7 +56,16 @@ interface CustomerProfile {
   dateOfBirth?: string;
   gender?: string;
   profileImage?: string;
-  addresses?: any[];
+  addresses?: Array<{
+    _id: string;
+    type: string;
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    isDefault: boolean;
+  }>;
   preferences?: {
     notifications: {
       email: boolean;
@@ -104,7 +103,7 @@ export default function CustomerProfilePage() {
   // Redirect if not authenticated or not a customer
   useEffect(() => {
     if (status === "loading") return;
-    if (!session?.user || (session.user as any).role !== "customer") {
+    if (!session?.user || (session.user as { role?: string }).role !== "customer") {
       router.push("/auth/signin");
       return;
     }
@@ -121,7 +120,7 @@ export default function CustomerProfilePage() {
       if (response.data.profile.dateOfBirth) {
         setSelectedDate(new Date(response.data.profile.dateOfBirth));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Profile fetch error:", error);
       toast.error("Failed to load profile data");
       setError("Failed to load profile data");
@@ -153,9 +152,9 @@ export default function CustomerProfilePage() {
       setIsEditing(false);
       toast.success("Profile updated successfully");
       setSuccess("Profile updated successfully");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Profile update error:", error);
-      const errorMessage = error.response?.data?.error || "Failed to update profile";
+      const errorMessage = "Failed to update profile";
       toast.error(errorMessage);
       setError(errorMessage);
     } finally {
@@ -163,7 +162,7 @@ export default function CustomerProfilePage() {
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: string | boolean | Date) => {
     if (!profile) return;
 
     if (field.includes(".")) {
@@ -171,7 +170,7 @@ export default function CustomerProfilePage() {
       setProfile({
         ...profile,
         [parent]: {
-          ...(profile[parent as keyof CustomerProfile] as any),
+          ...(profile[parent as keyof CustomerProfile] as Record<string, unknown>),
           [child]: value,
         },
       });
@@ -239,9 +238,9 @@ export default function CustomerProfilePage() {
             <CardHeader className="text-center pb-4">
               <div className="relative mx-auto mb-4">
                 <Avatar className="h-20 w-20 sm:h-24 sm:w-24 mx-auto">
-                  <AvatarImage src={profile.profileImage || ""} alt={profile.name} />
+                  <AvatarImage src={profile.profileImage || ""} alt={`${profile.firstName} ${profile.lastName}`} />
                   <AvatarFallback className="bg-blue-600 text-white text-xl sm:text-2xl">
-                    {profile.name?.charAt(0).toUpperCase()}
+                    {profile.firstName?.charAt(0).toUpperCase()}{profile.lastName?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <Button
@@ -251,7 +250,7 @@ export default function CustomerProfilePage() {
                   <Camera className="h-4 w-4" />
                 </Button>
               </div>
-              <CardTitle className="text-lg sm:text-xl">{profile.name}</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">{profile.firstName} {profile.lastName}</CardTitle>
               <CardDescription className="text-sm break-all">{profile.email}</CardDescription>
               <div className="flex flex-wrap justify-center gap-2 mt-2">
                 <Badge variant="outline" className="border-blue-600 text-blue-600">
@@ -346,20 +345,38 @@ export default function CustomerProfilePage() {
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name" className="text-sm font-medium">
-                          Full Name
+                        <Label htmlFor="firstName" className="text-sm font-medium">
+                          First Name
                         </Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                           <Input
-                            id="name"
-                            value={profile.name || ""}
-                            onChange={(e) => handleInputChange("name", e.target.value)}
+                            id="firstName"
+                            value={profile.firstName || ""}
+                            onChange={(e) => handleInputChange("firstName", e.target.value)}
                             className="pl-10"
                             disabled={!isEditing}
                           />
                         </div>
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName" className="text-sm font-medium">
+                          Last Name
+                        </Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                          <Input
+                            id="lastName"
+                            value={profile.lastName || ""}
+                            onChange={(e) => handleInputChange("lastName", e.target.value)}
+                            className="pl-10"
+                            disabled={!isEditing}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="email" className="text-sm font-medium">
                           Email Address
@@ -375,9 +392,6 @@ export default function CustomerProfilePage() {
                           />
                         </div>
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="mobile" className="text-sm font-medium">
                           Mobile Number
@@ -426,33 +440,33 @@ export default function CustomerProfilePage() {
                         <div className="sm:col-span-2">
                           <Input
                             placeholder="Street Address"
-                            value={profile.address?.street || ""}
-                            onChange={(e) => handleInputChange("address.street", e.target.value)}
+                            value={profile.addresses?.[0]?.street || ""}
+                            onChange={(e) => handleInputChange("addresses.0.street", e.target.value)}
                             disabled={!isEditing}
                           />
                         </div>
                         <Input
                           placeholder="City"
-                          value={profile.address?.city || ""}
-                          onChange={(e) => handleInputChange("address.city", e.target.value)}
+                          value={profile.addresses?.[0]?.city || ""}
+                          onChange={(e) => handleInputChange("addresses.0.city", e.target.value)}
                           disabled={!isEditing}
                         />
                         <Input
                           placeholder="State"
-                          value={profile.address?.state || ""}
-                          onChange={(e) => handleInputChange("address.state", e.target.value)}
+                          value={profile.addresses?.[0]?.state || ""}
+                          onChange={(e) => handleInputChange("addresses.0.state", e.target.value)}
                           disabled={!isEditing}
                         />
                         <Input
                           placeholder="ZIP Code"
-                          value={profile.address?.zipCode || ""}
-                          onChange={(e) => handleInputChange("address.zipCode", e.target.value)}
+                          value={profile.addresses?.[0]?.zipCode || ""}
+                          onChange={(e) => handleInputChange("addresses.0.zipCode", e.target.value)}
                           disabled={!isEditing}
                         />
                         <Input
                           placeholder="Country"
-                          value={profile.address?.country || ""}
-                          onChange={(e) => handleInputChange("address.country", e.target.value)}
+                          value={profile.addresses?.[0]?.country || ""}
+                          onChange={(e) => handleInputChange("addresses.0.country", e.target.value)}
                           disabled={!isEditing}
                         />
                       </div>
@@ -483,46 +497,44 @@ export default function CustomerProfilePage() {
                 </Card>
 
                 {/* Stats Card */}
-                {profile.stats && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg sm:text-xl">Account Overview</CardTitle>
-                      <CardDescription className="text-sm">Your recent activity and statistics</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="text-center bg-blue-50 rounded-lg p-4">
-                          <Package className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                          <div className="text-xl sm:text-2xl font-bold text-blue-600">
-                            {formatNumber(profile.stats.totalOrders)}
-                          </div>
-                          <div className="text-xs sm:text-sm text-gray-600">Total Orders</div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg sm:text-xl">Account Overview</CardTitle>
+                    <CardDescription className="text-sm">Your recent activity and statistics</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="text-center bg-blue-50 rounded-lg p-4">
+                        <Package className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+                        <div className="text-xl sm:text-2xl font-bold text-blue-600">
+                          {formatNumber(profile.totalOrders)}
                         </div>
-                        <div className="text-center bg-green-50 rounded-lg p-4">
-                          <CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                          <div className="text-xl sm:text-2xl font-bold text-green-600">
-                            {formatNumber(profile.stats.completedOrders)}
-                          </div>
-                          <div className="text-xs sm:text-sm text-gray-600">Completed</div>
-                        </div>
-                        <div className="text-center bg-yellow-50 rounded-lg p-4">
-                          <ShoppingCart className="h-6 w-6 text-yellow-600 mx-auto mb-2" />
-                          <div className="text-xl sm:text-2xl font-bold text-yellow-600">
-                            {formatNumber(profile.stats.pendingOrders)}
-                          </div>
-                          <div className="text-xs sm:text-sm text-gray-600">Pending</div>
-                        </div>
-                        <div className="text-center bg-purple-50 rounded-lg p-4">
-                          <Heart className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-                          <div className="text-xl sm:text-2xl font-bold text-purple-600">
-                            {formatNumber(profile.stats.wishlistItems)}
-                          </div>
-                          <div className="text-xs sm:text-sm text-gray-600">Wishlist</div>
-                        </div>
+                        <div className="text-xs sm:text-sm text-gray-600">Total Orders</div>
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                      <div className="text-center bg-green-50 rounded-lg p-4">
+                        <CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                        <div className="text-xl sm:text-2xl font-bold text-green-600">
+                          {formatNumber(profile.totalSpent)}
+                        </div>
+                        <div className="text-xs sm:text-sm text-gray-600">Total Spent</div>
+                      </div>
+                      <div className="text-center bg-yellow-50 rounded-lg p-4">
+                        <ShoppingCart className="h-6 w-6 text-yellow-600 mx-auto mb-2" />
+                        <div className="text-xl sm:text-2xl font-bold text-yellow-600">
+                          {formatNumber(profile.loyaltyPoints)}
+                        </div>
+                        <div className="text-xs sm:text-sm text-gray-600">Loyalty Points</div>
+                      </div>
+                      <div className="text-center bg-purple-50 rounded-lg p-4">
+                        <Heart className="h-6 w-6 text-purple-600 mx-auto mb-2" />
+                        <div className="text-xl sm:text-2xl font-bold text-purple-600">
+                          {profile.membershipTier}
+                        </div>
+                        <div className="text-xs sm:text-sm text-gray-600">Membership</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </>
             )}
 
@@ -656,10 +668,10 @@ export default function CustomerProfilePage() {
                           variant="outline" 
                           size="sm"
                           onClick={() => 
-                            handleInputChange("preferences.newsletter", 
-                            profile.preferences?.newsletter ? false : true)}
+                            handleInputChange("preferences.notifications.email", 
+                            profile.preferences?.notifications.email ? false : true)}
                         >
-                          {profile.preferences?.newsletter ? "Disable" : "Enable"}
+                          {profile.preferences?.notifications.email ? "Disable" : "Enable"}
                         </Button>
                       </div>
                       <Separator />
@@ -747,7 +759,7 @@ export default function CustomerProfilePage() {
                     <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                     <h3 className="text-lg font-medium text-gray-500">No Recent Orders</h3>
                     <p className="text-sm text-gray-500 mt-1 mb-4">
-                      You haven't placed any orders yet
+                      You haven&apos;t placed any orders yet
                     </p>
                     <Link href="/products" passHref>
                       <Button>Start Shopping</Button>

@@ -105,7 +105,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    let updateData = { ...validation.data }
+    const updateData = { ...validation.data }
 
     // Handle profile image upload if provided
     if (profileImageFile && profileImageFile.size > 0) {

@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category")
 
     // Build query
-    let query: any = {}
+    const query: any = {}
     
     if (search) {
       query.$or = [

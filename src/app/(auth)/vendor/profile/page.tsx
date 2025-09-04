@@ -19,12 +19,10 @@ import EmailVerification from "@/components/email-verification";
 import MobileVerification from "@/components/mobile-verification";
 import {
   Store,
-  Edit,
   Shield,
   Camera,
   Phone,
   Mail,
-  MapPin,
   CreditCard,
   Save,
   Loader2,
@@ -40,10 +38,9 @@ import {
   Bell,
   BarChart,
   Tag,
-  Users,
   Eye
 } from "lucide-react";
-import { formatDate, formatNumber, formatCurrency } from "@/utils/formatting";
+import { formatNumber } from "@/utils/formatting";
 
 interface VendorProfile {
   _id: string;
@@ -95,7 +92,7 @@ export default function VendorProfilePage() {
   // Redirect if not authenticated or not a vendor
   useEffect(() => {
     if (status === "loading") return;
-    if (!session?.user || (session.user as any).role !== "vendor") {
+    if (!session?.user || (session.user as { role?: string }).role !== "vendor") {
       router.push("/auth/signin");
       return;
     }
@@ -114,9 +111,9 @@ export default function VendorProfilePage() {
       } else {
         throw new Error("Failed to fetch profile data");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Profile fetch error:", error);
-      setError(error.response?.data?.error || "Failed to load profile data");
+      setError((error as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to load profile data");
     } finally {
       setLoading(false);
     }
@@ -153,22 +150,22 @@ export default function VendorProfilePage() {
       } else {
         throw new Error("Failed to update profile");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Profile update error:", error);
-      setError(error.response?.data?.error || "Failed to update profile");
+      setError((error as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to update profile");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: string | boolean | Date) => {
     if (!profile) return;
     if (field.includes(".")) {
       const [parent, child] = field.split(".");
       setProfile({
         ...profile,
         [parent]: {
-          ...(profile[parent as keyof VendorProfile] as any),
+          ...(profile[parent as keyof VendorProfile] as Record<string, unknown>),
           [child]: value,
         },
       });
@@ -874,7 +871,7 @@ export default function VendorProfilePage() {
                   <Alert className="bg-blue-50 border-blue-200">
                     <Shield className="h-4 w-4 text-blue-600" />
                     <AlertDescription className="text-blue-800 text-sm">
-                      Complete verification to enhance your store's credibility and access all selling features.
+                      Complete verification to enhance your store&apos;s credibility and access all selling features.
                       Verified vendors receive priority in search results and higher trust from customers.
                     </AlertDescription>
                   </Alert>

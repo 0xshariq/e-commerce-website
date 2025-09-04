@@ -27,14 +27,13 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  Database,
   Settings,
   TrendingUp,
   Package,
   Clock,
   UserCheck,
 } from "lucide-react";
-import { formatDate, formatNumber } from "@/utils/formatting";
+import { formatNumber } from "@/utils/formatting";
 
 interface AdminProfile {
   _id: string;
@@ -71,7 +70,7 @@ export default function AdminProfilePage() {
   // Redirect if not authenticated or not an admin
   useEffect(() => {
     if (status === "loading") return;
-    if (!session?.user || (session.user as any).role !== "admin") {
+    if (!session?.user || (session.user as { role: string }).role !== "admin") {
       router.push("/auth/signin");
       return;
     }
@@ -87,8 +86,8 @@ export default function AdminProfilePage() {
       } else {
         throw new Error("Failed to fetch profile");
       }
-    } catch (error: any) {
-      setError(error?.response?.data?.error || "Failed to load profile data");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "Failed to load profile data");
     } finally {
       setLoading(false);
     }
@@ -113,14 +112,14 @@ export default function AdminProfilePage() {
       } else {
         throw new Error("Failed to update profile");
       }
-    } catch (error: any) {
-      setError(error?.response?.data?.error || "Failed to update profile");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: string) => {
     if (!profile) return;
     setProfile({
       ...profile,
@@ -184,9 +183,9 @@ export default function AdminProfilePage() {
             <CardHeader className="text-center pb-4">
               <div className="relative mx-auto mb-4">
                 <Avatar className="h-20 w-20 sm:h-24 sm:w-24 mx-auto">
-                  <AvatarImage src={profile.profileImage || ""} alt={profile.name} />
+                  <AvatarImage src={profile.profileImage || ""} alt={`${profile.firstName} ${profile.lastName}`} />
                   <AvatarFallback className="bg-purple-600 text-white text-xl sm:text-2xl">
-                    {profile.name?.charAt(0).toUpperCase()}
+                    {profile.firstName?.charAt(0).toUpperCase()}{profile.lastName?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <Button
@@ -196,7 +195,7 @@ export default function AdminProfilePage() {
                   <Camera className="h-4 w-4" />
                 </Button>
               </div>
-              <CardTitle className="text-lg sm:text-xl">{profile.name}</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">{profile.firstName} {profile.lastName}</CardTitle>
               <CardDescription className="text-sm break-all">{profile.email}</CardDescription>
               <div className="flex flex-wrap justify-center gap-2 mt-2">
                 <Badge variant="outline" className="border-purple-600 text-purple-600">
@@ -256,20 +255,38 @@ export default function AdminProfilePage() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-medium">
-                      Full Name
+                    <Label htmlFor="firstName" className="text-sm font-medium">
+                      First Name
                     </Label>
                     <div className="relative">
                       <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                       <Input
-                        id="name"
-                        value={profile.name || ""}
-                        onChange={(e) => handleInputChange("name", e.target.value)}
+                        id="firstName"
+                        value={profile.firstName || ""}
+                        onChange={(e) => handleInputChange("firstName", e.target.value)}
                         className="pl-10"
                         disabled={!isEditing}
                       />
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName" className="text-sm font-medium">
+                      Last Name
+                    </Label>
+                    <div className="relative">
+                      <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        id="lastName"
+                        value={profile.lastName || ""}
+                        onChange={(e) => handleInputChange("lastName", e.target.value)}
+                        className="pl-10"
+                        disabled={!isEditing}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-medium">
                       Email Address
@@ -285,22 +302,21 @@ export default function AdminProfilePage() {
                       />
                     </div>
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="mobile" className="text-sm font-medium">
-                    Mobile Number
-                  </Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      id="mobile"
-                      type="tel"
-                      value={profile.mobileNo || ""}
-                      onChange={(e) => handleInputChange("mobileNo", e.target.value)}
-                      className="pl-10"
-                      disabled={!isEditing}
-                    />
+                  <div className="space-y-2">
+                    <Label htmlFor="mobile" className="text-sm font-medium">
+                      Mobile Number
+                    </Label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        id="mobile"
+                        type="tel"
+                        value={profile.mobileNo || ""}
+                        onChange={(e) => handleInputChange("mobileNo", e.target.value)}
+                        className="pl-10"
+                        disabled={!isEditing}
+                      />
+                    </div>
                   </div>
                 </div>
 

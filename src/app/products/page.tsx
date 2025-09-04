@@ -74,7 +74,7 @@ const ProductsPage = () => {
   }
 
   const filteredAndSortedProducts = React.useMemo(() => {
-    let filtered = products.filter(product => {
+    const filtered = products.filter(product => {
       const matchesCategory = selectedCategory === 'all' || product.category._id === selectedCategory
       const matchesSearch = product.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            product.category.name.toLowerCase().includes(searchQuery.toLowerCase())

@@ -106,7 +106,7 @@ export default function EditProductPage({ params }: { params: { productId: strin
       return
     }
 
-    if ((session?.user as any)?.role !== "vendor") {
+    if ((session?.user as { role?: string })?.role !== "vendor") {
       router.push("/")
       return
     }
@@ -134,7 +134,7 @@ export default function EditProductPage({ params }: { params: { productId: strin
         toast.error("Product not found")
         router.push("/vendor/products")
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Error fetching product")
     } finally {
       setLoading(false)

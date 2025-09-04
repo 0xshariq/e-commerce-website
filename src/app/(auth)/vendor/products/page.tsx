@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Plus, Search, MoreVertical, Edit, Trash2, Eye, Package, DollarSign, TrendingUp } from "lucide-react"
+import { Plus, Search, MoreVertical, Edit, Trash2, Eye, Package, TrendingUp } from "lucide-react"
 import { toast } from "sonner"
 
 interface Product {
@@ -48,7 +48,7 @@ export default function VendorProductsPage() {
       return
     }
 
-    if (session?.user?.role !== "vendor") {
+    if ((session?.user as { role?: string })?.role !== "vendor") {
       router.push("/")
       return
     }

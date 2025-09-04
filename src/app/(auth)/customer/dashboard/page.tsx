@@ -6,12 +6,12 @@ import CustomerDashboardContent from "@/components/customer/dashboard/customer-d
 interface SessionUser {
   name?: string;
   role?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface Session {
   user: SessionUser;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export default async function CustomerDashboard() {
